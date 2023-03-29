@@ -2586,30 +2586,37 @@ static void lsp_set_no_current_match()
 	cf->current_match = lsp_no_match;
 }
 
-static void lsp_cmd_search()
+/*
+ * Search command.
+ * get_string specifies if we need to read a search string.
+ * If false lsp_search_string is already prepared.
+ */
+static void lsp_cmd_search(bool get_string)
 {
-	/* Read search string */
-	if (wmove(lsp_win, lsp_maxy - 1, 0) == ERR)
-		lsp_error("wmove failed.\n");
-	wattr_set(lsp_win, A_NORMAL, LSP_DEFAULT_PAIR, NULL);
+	if (get_string) {
+		/* Read search string */
+		if (wmove(lsp_win, lsp_maxy - 1, 0) == ERR)
+			lsp_error("wmove failed.\n");
+		wattr_set(lsp_win, A_NORMAL, LSP_DEFAULT_PAIR, NULL);
 
-	if (lsp_search_direction == LSP_FW)
-		mvwaddch(lsp_win, lsp_maxy - 1, 0, '/');
-	else
-		mvwaddch(lsp_win, lsp_maxy - 1, 0, '?');
+		if (lsp_search_direction == LSP_FW)
+			mvwaddch(lsp_win, lsp_maxy - 1, 0, '/');
+		else
+			mvwaddch(lsp_win, lsp_maxy - 1, 0, '?');
 
-	wclrtoeol(lsp_win);
+		wclrtoeol(lsp_win);
 
-	wrefresh(lsp_win);
+		wrefresh(lsp_win);
 
-	/* Save old search string if any */
-	if (*lsp_search_string != '\0')
-		strcpy(lsp_search_string_old, lsp_search_string);
+		/* Save old search string if any */
+		if (*lsp_search_string != '\0')
+			strcpy(lsp_search_string_old, lsp_search_string);
 
-	echo();
-	mvwgetnstr(lsp_win, lsp_maxy - 1, 1, lsp_search_string,
-		   sizeof(lsp_search_string));
-	noecho();
+		echo();
+		mvwgetnstr(lsp_win, lsp_maxy - 1, 1, lsp_search_string,
+			   sizeof(lsp_search_string));
+		noecho();
+	}
 
 	if (*lsp_search_string == '\0')
 		if (*lsp_search_string_old != '\0')
@@ -4804,13 +4811,13 @@ static void lsp_workhorse()
 		case '/':
 			lsp_cursor_set = false;
 			lsp_search_direction = LSP_FW;
-			lsp_cmd_search();
+			lsp_cmd_search(true);
 			lsp_display_page();
 			break;
 		case '?':
 			lsp_cursor_set = false;
 			lsp_search_direction = LSP_BW;
-			lsp_cmd_search();
+			lsp_cmd_search(true);
 			lsp_display_page();
 			break;
 		case 'T':
@@ -5371,6 +5378,13 @@ int main(int argc, char *argv[])
 #if DEBUG
 	lsp_print_file_ring();
 #endif
+
+	if (*lsp_search_string != '\0') {
+		lsp_display_page();
+		lsp_cursor_set = false;
+		lsp_search_direction = LSP_FW;
+		lsp_cmd_search(false);
+	}
 
 	lsp_workhorse();
 

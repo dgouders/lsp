@@ -123,7 +123,7 @@ static void			lsp_cmd_kill_file(void);
 static void			lsp_cmd_mouse(void);
 static void			lsp_cmd_open_manpage(void);
 static void			lsp_cmd_resize(void);
-static void			lsp_cmd_search(void);
+static void			lsp_cmd_search(bool);
 static void			lsp_cmd_search_refs(void);
 static void			lsp_cmd_toggle_options(void);
 static void			lsp_cmd_visit_reference(void);

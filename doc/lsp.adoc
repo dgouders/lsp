@@ -100,6 +100,9 @@ toggle case sensitivity for searches.
 
 *-s, --search-string*::
  Specify an initial search string.
++
+*lsp* then starts with searching for that string and positions to the
+first match or displays an error message.
 
 *-v, --version*::
  Output version information of *lsp* and exit.
