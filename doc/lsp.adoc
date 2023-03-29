@@ -113,7 +113,10 @@ toggle case sensitivity for searches.
  Default is _man %s_.
 
 *--verify-command*::
- Specify command to verify the existance of references.  Default is `man -w`.
+ Specify command to verify the existance of references. +
+ The given string should contain exactly one _%s_ which will be replaced by _<name>(<section>)_.
++
+Default is _man -w \"%s\" > /dev/null 2>&1_.
 
 *--verify-with-apropos*::
  Use the entries of the apropos pseudo-file for validation of references.

@@ -2492,7 +2492,6 @@ static size_t lsp_file_pos2line(off_t pos)
 static bool lsp_ref_is_valid(struct gref_t *gref)
 {
 	int ret;
-	char cmd_format[] = "man -s %s -w %s > /dev/null 2>&1";
 	size_t cmd_len;
 
 	/*
@@ -2514,20 +2513,17 @@ static bool lsp_ref_is_valid(struct gref_t *gref)
 		return gref->valid == 1;
 	}
 
-	/* Extract name and section from string. */
-	struct man_id m_id = lsp_create_man_id(gref->name);
-
 	/* Calculate length of command string.
-	   First part is the length of the format string minus 4 bytes
+	   First part is the length of the format string minus 2 bytes
 	   conversion specifier. */
-	cmd_len = sizeof(cmd_format) - 4;
+	cmd_len = strlen(lsp_verify_command) - 2;
 
-	/* Next part is the length of the section and name plus terminator. */
-	cmd_len += strlen(m_id.name) + strlen(m_id.section) + 1;
+	/* Next part is the length of gref name plus terminator. */
+	cmd_len += strlen(gref->name) + 1;
 
 	char *command = malloc(cmd_len);
 
-	sprintf(command, cmd_format, m_id.section, m_id.name);
+	sprintf(command, lsp_verify_command, gref->name);
 
 	ret = system(command);
 
@@ -2535,49 +2531,8 @@ static bool lsp_ref_is_valid(struct gref_t *gref)
 		  __func__, command, ret == 0 ? "valid" : "invalid");
 
 	free(command);
-	lsp_delete_man_id(&m_id);
 
 	return ret == 0;
-}
-
-/*
- * Create a man_id structure with separate name and section strings from a
- * string of the form "name(sect)".
- *
- * Return the created structure.
- */
-static struct man_id lsp_create_man_id(const char *s)
-{
-	struct man_id m_id;
-	char *lp;
-	char *rp;
-
-	/* Find the left and right parentheses which mark the end of the name,
-	   the start of the section and the end of the section. */
-	lp = strchr(s, '(');
-	rp = strchr(lp, ')');
-
-	/* Allocate memory for name and section strings. */
-	m_id.name = calloc(1, 1 + lp - s);
-	m_id.section = calloc(1, 1 + rp - (lp + 1));
-
-	/* Fill name and section. */
-	memcpy(m_id.name, s, lp - s);
-	memcpy(m_id.section, lp + 1, rp - (lp + 1));
-
-	return m_id;
-}
-
-/*
- * Free memory used by a man_id.
- */
-static void lsp_delete_man_id(struct man_id *m_id)
-{
-	if (!m_id)
-		return;
-
-	free(m_id->section);
-	free(m_id->name);
 }
 
 /*
@@ -5396,7 +5351,7 @@ static void lsp_init()
 
 	lsp_reload_command = strdup("man %s");
 
-	lsp_verify_command = strdup("man -w %s");
+	lsp_verify_command = strdup("man -w \"%s\" > /dev/null 2>&1");
 
 	lsp_verify_with_apropos = false;
 

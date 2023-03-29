@@ -37,14 +37,6 @@ struct data_t {
 };
 
 /*
- * Structure to identify manual pages using section and name.
- */
-struct man_id {
-	char *section;
-	char *name;
-};
-
-/*
  * TOC entries are pointers to lines with indentation levels 0,4,8
  * which are kept in a linked list:
  */
@@ -138,10 +130,8 @@ static void			lsp_cmd_visit_reference(void);
 static char *			lsp_cmd_select_file(void);
 static int			lsp_cmp_line_pos(size_t, off_t);
 static char**			lsp_create_argv(char *, char *);
-static struct man_id		lsp_create_man_id(const char *);
 static void			lsp_create_status_line(void);
 static void			lsp_cursor_care(void);
-static void			lsp_delete_man_id(struct man_id *);
 static int			lsp_debug(const char *, ...);
 static size_t			lsp_decode_sgr(const char *, attr_t *, short *);
 static char *			lsp_detect_manpage(void);
