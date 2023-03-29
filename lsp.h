@@ -137,6 +137,7 @@ static void			lsp_cmd_toggle_options(void);
 static void			lsp_cmd_visit_reference(void);
 static char *			lsp_cmd_select_file(void);
 static int			lsp_cmp_line_pos(size_t, off_t);
+static char**			lsp_create_argv(char *, char *);
 static struct man_id		lsp_create_man_id(const char *);
 static void			lsp_create_status_line(void);
 static void			lsp_cursor_care(void);

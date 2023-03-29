@@ -3839,6 +3839,42 @@ static void lsp_open_manpage(char *name)
 	lsp_exec_man();
 }
 
+/*
+ * Create argument vector for exec().
+ *
+ * For now, we expect a format string that contains exactly one "%s" to be
+ * replaced by the second argument str.
+ */
+char** lsp_create_argv(char *format, char *str)
+{
+	char **argv = malloc(sizeof(char *));
+	char *tok;
+	unsigned int i = 0;
+
+	lsp_debug("%s: building argv for \"%s\" and \"%s\"", __func__, format, str);
+
+	/* Get first token. */
+	tok = strtok(strdup(format), " \t");
+
+	while (tok) {
+		if (!strcmp(tok, "%s"))
+			argv[i] = str;
+		else
+			argv[i] = tok;
+
+		/* Get next token. */
+		tok = strtok(NULL, " \t");
+
+		i++;
+		argv = realloc(argv, (i + 1) * sizeof(char *));
+	}
+
+	/* Terminate argv. */
+	argv[i] = NULL;
+
+	return argv;
+}
+
 static void lsp_exec_man()
 {
 	/*
@@ -3864,8 +3900,10 @@ static void lsp_exec_man()
 
 		putenv("PAGER=cat");
 
-		execlp("man", "man", cf->name, (char *)NULL);
-		lsp_error("execlp() failed.\n");
+		char **e_argv = lsp_create_argv(lsp_reload_command, cf->name);
+
+		execvp(e_argv[0], e_argv);
+		lsp_error("execvp() failed.\n");
 	}
 
 	cf->fd = ptmxfd;
@@ -5356,7 +5394,7 @@ static void lsp_init()
 	lsp_load_apropos = false;
 	lsp_apropos_command = strdup("apropos . | sort | sed 's/ (/(/'");
 
-	lsp_reload_command = strdup("man");
+	lsp_reload_command = strdup("man %s");
 
 	lsp_verify_command = strdup("man -w %s");
 
