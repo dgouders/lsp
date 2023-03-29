@@ -93,7 +93,7 @@ static void *lsp_malloc(size_t size)
 	void *ptr = malloc(size);
 
 	if (ptr == NULL) {
-		lsp_error("%s: %s\n", __func__, strerror(ENOMEM));
+		lsp_error("%s: %s\n", __func__, strerror(errno));
 	}
 
 	return ptr;
@@ -104,7 +104,7 @@ static void *lsp_calloc(size_t nmemb, size_t size)
 	void *ptr = calloc(nmemb, size);
 
 	if (ptr == NULL) {
-		lsp_error("%s: %s\n", __func__, strerror(ENOMEM));
+		lsp_error("%s: %s\n", __func__, strerror(errno));
 	}
 
 	return ptr;
@@ -115,7 +115,7 @@ static void *lsp_realloc(void *ptr, size_t size)
 	void *ret_ptr = realloc(ptr, size);
 
 	if (ret_ptr == NULL) {
-		lsp_error("%s: %s\n", __func__, strerror(ENOMEM));
+		lsp_error("%s: %s\n", __func__, strerror(errno));
 	}
 
 	return ret_ptr;
@@ -144,7 +144,7 @@ static char *lsp_detect_manpage()
 	if (!line)
 		return NULL;
 
-	regex_str = calloc(1, 2 * strlen(ref_regex) + strlen(regex_mid) + 1);
+	regex_str = lsp_calloc(1, 2 * strlen(ref_regex) + strlen(regex_mid) + 1);
 	strcat(regex_str, ref_regex);
 	strcat(regex_str, regex_mid);
 	strcat(regex_str, ref_regex);
@@ -649,7 +649,7 @@ static void lsp_file_toc_add(const struct lsp_line_t *line, int level)
 		  __func__, level, line->normalized);
 
 	if (!cf->toc) {
-		cf->toc = calloc(1, sizeof(struct toc_node_t));
+		cf->toc = lsp_calloc(1, sizeof(struct toc_node_t));
 		cf->toc->pos = line->pos;
 		cf->toc->level = level;
 		return;
@@ -660,7 +660,7 @@ static void lsp_file_toc_add(const struct lsp_line_t *line, int level)
 		lsp_error("%s: TOC must be created top down (%ld after %ld).\n",
 			  __func__, line->pos, cf->toc->pos);
 
-	toc_new_p = calloc(1, sizeof(struct toc_node_t));
+	toc_new_p = lsp_calloc(1, sizeof(struct toc_node_t));
 
 	toc_new_p->pos = line->pos;
 	toc_new_p->level = level;
@@ -914,7 +914,7 @@ again:
  */
 static struct lsp_line_t *lsp_line_ctor()
 {
-	struct lsp_line_t *line = malloc(sizeof(*line));
+	struct lsp_line_t *line = lsp_malloc(sizeof(*line));
 
 	line->pos = line->len = line->nlen = 0;
 
@@ -922,7 +922,7 @@ static struct lsp_line_t *lsp_line_ctor()
 	line->normalized = NULL;
 
 	line->n_scr_line = 1;
-	line->scr_line = malloc(sizeof(line->scr_line[0]));
+	line->scr_line = lsp_malloc(sizeof(line->scr_line[0]));
 	line->scr_line[0] = 0;	/* The beginning of a line also is the
 				 * beginning of a screen line. */
 
@@ -1086,7 +1086,7 @@ static void lsp_line_add_screen_lines(struct lsp_line_t *line)
 			/* Add onother screen line. */
 			scrlp += 1;
 			line->n_scr_line += 1;
-			line->scr_line = realloc(line->scr_line, line->n_scr_line);
+			line->scr_line = lsp_realloc(line->scr_line, line->n_scr_line);
 			line->scr_line[scrlp] = i;
 			current_len = 0;
 
@@ -1169,11 +1169,11 @@ static struct lsp_line_t *lsp_get_line_from_here()
 
 	pos = 0;
 	size = 128;
-	str = malloc(size);
+	str = lsp_malloc(size);
 
 	while (ch != -1) {
 		if (pos + 1 >= size) {
-			str = realloc(str, size * 2);
+			str = lsp_realloc(str, size * 2);
 			size *= 2;
 		}
 
@@ -1213,7 +1213,7 @@ static struct lsp_line_t *lsp_get_line_from_here()
 	}
 
 	/* Reallocate to correct size */
-	str = realloc(str, pos + 1);
+	str = lsp_realloc(str, pos + 1);
 
 	assert(strlen(str) == pos);
 
@@ -1281,7 +1281,7 @@ static char *lsp_normalize(const char *str, size_t length)
 	/* We should be allocating too much memory, because the worst we do is
 	   to ignore characters from the raw string.
 	   We correct the allocated size below. */
-	normalized = malloc(length + 1);
+	normalized = lsp_malloc(length + 1);
 
 	/* Copy the string ignoring c\b sequences */
 	for (i = 0, nlen = 0; i < length; i++) {
@@ -1302,7 +1302,7 @@ static char *lsp_normalize(const char *str, size_t length)
 
 	/* Adjust the allocated memory to the correct size */
 	if ((length + 1) > nlen)
-		normalized = realloc(normalized, nlen);
+		normalized = lsp_realloc(normalized, nlen);
 
 	/* ...or error out if our heuristics failed. */
 	if ((length + 1) < nlen)
@@ -1346,7 +1346,7 @@ static ssize_t lsp_file_add_line(const char *line)
 		;		/* just count */
 
 	if (cf->data == NULL) {
-		cf->data = malloc(sizeof(struct data_t));
+		cf->data = lsp_malloc(sizeof(struct data_t));
 		cf->data->prev = cf->data->next = cf->data;
 		cf->data->buffer = NULL;
 		cf->data->seek = 0;
@@ -1355,7 +1355,7 @@ static ssize_t lsp_file_add_line(const char *line)
 	if (cf->size == LSP_FSIZE_UNKNOWN)
 		cf->size = 0;
 
-	cf->data->buffer = realloc(cf->data->buffer, cf->size + line_len);
+	cf->data->buffer = lsp_realloc(cf->data->buffer, cf->size + line_len);
 
 	memcpy(cf->data->buffer + cf->size, line, line_len);
 
@@ -1380,10 +1380,10 @@ static size_t lsp_buffer_free_size()
  */
 static void lsp_file_data_ctor(size_t size_to_read)
 {
-	struct data_t *new_data = malloc(sizeof(struct data_t));
+	struct data_t *new_data = lsp_malloc(sizeof(struct data_t));
 
 	new_data->seek = cf->seek; /* Position this data block was read from */
-	new_data->buffer = malloc(size_to_read);
+	new_data->buffer = lsp_malloc(size_to_read);
 
 	if (cf->data == NULL) {
 		/* First buffer in ring */
@@ -1505,7 +1505,7 @@ static void lsp_lines_add(off_t next_line)
 
 	/* Adjust size of lines array. */
 	if (cf->lines_count + 1 == cf->lines_size) {
-		cf->lines = realloc(cf->lines,
+		cf->lines = lsp_realloc(cf->lines,
 				    (cf->lines_size * 2) * sizeof(next_line));
 		cf->lines_size *= 2;
 	}
@@ -1815,7 +1815,7 @@ static int lsp_open_file(const char *name)
 	}
 
 	size_t cmd_len = strlen(lsp_env_open) + strlen(name) + 1;
-	char *cmd = calloc(cmd_len, 1);
+	char *cmd = lsp_calloc(cmd_len, 1);
 	snprintf(cmd, cmd_len, lsp_env_open, name);
 
 	if (cmd[0] == '|') {
@@ -2306,7 +2306,7 @@ static int lsp_gref_henter(struct gref_t *gref_p)
 static char *lsp_to_lower(char *str)
 {
 	int i;
-	char *new_str = malloc(strlen(str) + 1);
+	char *new_str = lsp_malloc(strlen(str) + 1);
 
 	for (i = 0; str[i]; i++)
 		new_str[i] = tolower(str[i]);
@@ -2349,7 +2349,7 @@ static struct gref_t *lsp_gref_search(char *name)
 	}
 
 	/* gref not found: add it. */
-	ptr = malloc(sizeof(struct gref_t));
+	ptr = lsp_malloc(sizeof(struct gref_t));
 	ptr->name = tmp_name;   /* strdup() happend in lsp_to_lower()! */
 	ptr->valid = -1;	/* not yet validated */
 
@@ -2519,7 +2519,7 @@ static bool lsp_ref_is_valid(struct gref_t *gref)
 	/* Next part is the length of gref name plus terminator. */
 	cmd_len += strlen(gref->name) + 1;
 
-	char *command = malloc(cmd_len);
+	char *command = lsp_malloc(cmd_len);
 
 	sprintf(command, lsp_verify_command, gref->name);
 
@@ -2546,7 +2546,7 @@ static char *lsp_search_compile_regex(lsp_mode_t search_mode)
 		/* For references, we re-use the same regular expression.
 		   No need to compile it more than once. */
 		if (lsp_refs_regex == NULL) {
-			lsp_refs_regex = calloc(1, sizeof(regex_t));
+			lsp_refs_regex = lsp_calloc(1, sizeof(regex_t));
 
 			ret = regcomp(lsp_refs_regex, lsp_search_ref_string, REG_EXTENDED);
 
@@ -2560,7 +2560,7 @@ static char *lsp_search_compile_regex(lsp_mode_t search_mode)
 		if (lsp_search_regex) {
 			regfree(lsp_search_regex);
 		} else {
-			lsp_search_regex = calloc(1, sizeof(regex_t));
+			lsp_search_regex = lsp_calloc(1, sizeof(regex_t));
 		}
 		int cflags = REG_EXTENDED;
 		if (!lsp_case_sensitivity)
@@ -2572,7 +2572,7 @@ static char *lsp_search_compile_regex(lsp_mode_t search_mode)
 	if (ret != 0) {
 		char *err_text;
 		size_t err_len = regerror(ret, lsp_search_regex, NULL, 0);
-		err_text = malloc(err_len);
+		err_text = lsp_malloc(err_len);
 		regerror(ret, lsp_search_regex, err_text, err_len);
 		lsp_file_set_pos(cf->page_first);
 		return err_text;
@@ -3007,7 +3007,7 @@ static size_t lsp_line_get_matches(const struct lsp_line_t *line, regmatch_t **p
 	/* Allocate memory for max possible number of matches and that
 	   should be the number of bytes in the line. */
 	pmatch_len = line->nlen + 1;
-	*pmatch = realloc(*pmatch, pmatch_len * sizeof(regmatch_t));
+	*pmatch = lsp_realloc(*pmatch, pmatch_len * sizeof(regmatch_t));
 
 	char *ptr = line->normalized;
 
@@ -3800,7 +3800,7 @@ static void lsp_open_manpage(char *name)
  */
 char** lsp_create_argv(char *format, char *str)
 {
-	char **argv = malloc(sizeof(char *));
+	char **argv = lsp_malloc(sizeof(char *));
 	char *tok;
 	unsigned int i = 0;
 
@@ -3819,7 +3819,7 @@ char** lsp_create_argv(char *format, char *str)
 		tok = strtok(NULL, " \t");
 
 		i++;
-		argv = realloc(argv, (i + 1) * sizeof(char *));
+		argv = lsp_realloc(argv, (i + 1) * sizeof(char *));
 	}
 
 	/* Terminate argv. */
@@ -4013,7 +4013,7 @@ static void lsp_file_reset()
 static void lsp_files_list()
 {
 	size_t line_size = 1024;
-	char *line = malloc(line_size);
+	char *line = lsp_malloc(line_size);
 	struct file_t *file_p = cf->prev;
 
 	/* Do nothing if there is only a single file. */
@@ -4035,7 +4035,7 @@ static void lsp_files_list()
 		}
 
 		if (nlen >= line_size) {
-			line = realloc(line, nlen + 1);
+			line = lsp_realloc(line, nlen + 1);
 			line_size = nlen + 1;
 		}
 
@@ -4968,7 +4968,7 @@ static void lsp_file_add(char *name, bool new_current)
  */
 static struct file_t *lsp_file_ctor()
 {
-	struct file_t *new_file = malloc(sizeof(struct file_t));
+	struct file_t *new_file = lsp_malloc(sizeof(struct file_t));
 
 	new_file->mode = LSP_INITIAL_MODE;
 	new_file->name = NULL;
@@ -4980,7 +4980,7 @@ static struct file_t *lsp_file_ctor()
 	new_file->getch_pos = 0;
 	new_file->unaligned = 0;
 	new_file->lines_count = 1;
-	new_file->lines = malloc(LSP_LINES_INITIAL_SIZE * sizeof(off_t));
+	new_file->lines = lsp_malloc(LSP_LINES_INITIAL_SIZE * sizeof(off_t));
 	/* The first line always starts at pos 0 */
 	new_file->lines[0] = 0;
 	new_file->lines_size = LSP_LINES_INITIAL_SIZE;
@@ -5046,7 +5046,7 @@ static void lsp_parse_env_options(int *argc, char **argv[], char *options)
 	/* Save value for later comparison */
 	ac1 = *argc;
 
-	*argv = malloc(*argc * sizeof(char *));
+	*argv = lsp_malloc(*argc * sizeof(char *));
 
 	*argc = 0;
 
