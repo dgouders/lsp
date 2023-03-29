@@ -85,8 +85,6 @@
 
 #include "lsp.h"
 
-char **environ;
-
 /*
  * Our memory allocators with error handling.
  */
@@ -3849,10 +3847,6 @@ static void lsp_exec_man()
 		lsp_error("%s", strerror(errno));
 
 	if (pid == 0) {		/* child process */
-		environ = malloc(2 * sizeof(char *));
-		environ[0] = "PAGER=cat";
-		environ[1] = (char *)NULL;
-
 		putenv("PAGER=cat");
 
 		char **e_argv = lsp_create_argv(lsp_reload_command, cf->name);
