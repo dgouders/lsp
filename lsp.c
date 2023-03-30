@@ -4079,6 +4079,8 @@ static void lsp_files_list()
  */
 static char *lsp_cmd_select_file()
 {
+	size_t first_line;
+	size_t last_line;
 	size_t line_no = 0;
 	struct lsp_line_t *line;
 	char *file_name;
@@ -4095,7 +4097,7 @@ static char *lsp_cmd_select_file()
 		switch (cmd) {
 		case '\n':
 			/* Visit file on active line. */
-			size_t first_line = lsp_file_pos2line(cf->page_first) - 1;
+			first_line = lsp_file_pos2line(cf->page_first) - 1;
 
 			line = lsp_get_line_at_pos(cf->lines[first_line + line_no]);
 
@@ -4132,8 +4134,8 @@ static char *lsp_cmd_select_file()
 			if (cf->page_last == cf->size) {
 				/* End of data is on this page.
 				   Don't scroll beyond it. */
-				size_t first_line = lsp_file_pos2line(cf->page_first);
-				size_t last_line = lsp_file_pos2line(cf->page_last);
+				first_line = lsp_file_pos2line(cf->page_first);
+				last_line = lsp_file_pos2line(cf->page_last);
 
 				if (line_no == last_line - first_line)
 					break;

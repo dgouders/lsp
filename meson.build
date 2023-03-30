@@ -13,6 +13,7 @@ ncursesw_dep = dependency('ncursesw')
 executable(
         'lsp',
         'lsp.c',
+        link_args : ['-lutil'],
         dependencies : ncursesw_dep,
         install : true
 )
