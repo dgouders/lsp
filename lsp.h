@@ -436,6 +436,7 @@ char	*lsp_reload_command;
 /* Command used to verify references. */
 char	*lsp_verify_command;
 bool	lsp_verify_with_apropos;
+bool	lsp_verify;
 
 /*
  * Further global variables.

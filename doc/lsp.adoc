@@ -98,15 +98,6 @@ toggle case sensitivity for searches.
 *-n, --line-numbers*::
  Toggle visible line numbers.
 
-*-s, --search-string*::
- Specify an initial search string.
-+
-*lsp* then starts with searching for that string and positions to the
-first match or displays an error message.
-
-*-v, --version*::
- Output version information of *lsp* and exit.
-
 *--no-color*::
  Disable colored output.
 
@@ -115,6 +106,25 @@ first match or displays an error message.
  The given string should contain exactly one _%s_ which will be replaced by _<name>(<section>)_.
  Default is _man %s_.
 
+*-s, --search-string*::
+ Specify an initial search string.
++
+*lsp* then starts with searching for that string and positions to the
+first match or displays an error message.
+
+*-V, --no-verify*::
+ Toggle verification of references.
++
+Verification of references is an expensive procedure.
+On slow machines users might want options in that case: this one can
+be used to completely turn verification off.  This comes at the cost
+that unusable references might be presented.
++
+By default verification is *on*.
+
+*-v, --version*::
+ Output version information of *lsp* and exit.
+
 *--verify-command*::
  Specify command to verify the existance of references. +
  The given string should contain exactly one _%s_ which will be replaced by _<name>(<section>)_.
@@ -122,7 +132,15 @@ first match or displays an error message.
 Default is _man -w \"%s\" > /dev/null 2>&1_.
 
 *--verify-with-apropos*::
- Use the entries of the apropos pseudo-file for validation of references.
+ Use the entries of the pseudo-file _Apropos_ for validation of
+ references. +
+This option can speed up verification of references significantly but
+ users should keep in mind that verification will then be as reliable
+ as the system's manual page index is. +
+ With this option, the first usage of _TAB_ or _Shift-TAB_ will load
+ the pseudo-file _Apropos_ and create valid references for each of
+ it's entries; all following reference actions will then be much
+ faster (approx. O(1)).
 
 == Commands
 
@@ -221,7 +239,7 @@ One that provides the path to a replacement file and the one that writes the con
 
 == See also
 
-*apropos*(1), *less*(1), *man*(1), *more*(1), *pg*(1)
+*apropos*(1), *less*(1), *man*(1), *mandb*(8), *more*(1), *pg*(1)
 
 == Bugs
 

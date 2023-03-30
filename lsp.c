@@ -2875,6 +2875,10 @@ static bool lsp_validate_ref_at_pos(regmatch_t pos)
 {
 	struct gref_t *gref = lsp_get_gref_at_pos(pos);
 
+	/* Return true if verification is turned off. */
+	if (!lsp_verify)
+		return true;
+
 	if (gref->valid == -1)
 		gref->valid = lsp_ref_is_valid(gref);
 
@@ -4477,6 +4481,15 @@ static void lsp_cmd_toggle_options()
 		else
 			lsp_maxx += 8;
 		break;
+	case 'V':
+		lsp_verify = !lsp_verify;
+
+		if (lsp_verify) {
+			lsp_prompt = "Verification of references turned ON.";
+		} else {
+			lsp_prompt = "Verification of references turned OFF.";
+		}
+		break;
 	} /* switch() */
 }
 
@@ -5356,6 +5369,8 @@ static void lsp_init()
 	lsp_verify_command = strdup("man -w \"%s\" > /dev/null 2>&1");
 
 	lsp_verify_with_apropos = false;
+
+	lsp_verify = true;
 
 	lsp_htable_entries = 100000;
 	lsp_grefs_count = 0;
