@@ -4420,8 +4420,7 @@ static void lsp_cursor_care()
 			wmove(lsp_win, lsp_cursor_y, lsp_cursor_x);
 			curs_set(2);
 		} else {
-			cf->cmatch_y = cf->cmatch_x = 0;
-			curs_set(1);
+			curs_set(0);
 		}
 	}
 }
@@ -5381,7 +5380,6 @@ int main(int argc, char *argv[])
 
 	if (*lsp_search_string != '\0') {
 		lsp_display_page();
-		lsp_cursor_set = false;
 		lsp_search_direction = LSP_FW;
 		lsp_cmd_search(false);
 	}
