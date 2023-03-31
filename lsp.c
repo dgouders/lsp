@@ -2612,10 +2612,12 @@ static void lsp_cmd_search(bool get_string)
 		if (*lsp_search_string != '\0')
 			strcpy(lsp_search_string_old, lsp_search_string);
 
+		curs_set(1);
 		echo();
 		mvwgetnstr(lsp_win, lsp_maxy - 1, 1, lsp_search_string,
 			   sizeof(lsp_search_string));
 		noecho();
+		curs_set(0);
 	}
 
 	if (*lsp_search_string == '\0')
@@ -2709,6 +2711,9 @@ static void lsp_file_search_prev(lsp_mode_t search_mode)
 		return;
 	}
 
+	lsp_prompt = "Searching...";
+	lsp_create_status_line();
+
 	/* Find match backwards.
 	   If we are in the middle of a line we cut the tail
 	   starting from the previous match and start with inspecting the
@@ -2764,6 +2769,8 @@ static void lsp_line_cut_tail(struct lsp_line_t *line, off_t t_pos)
  */
 static void lsp_file_search_next(lsp_mode_t search_mode)
 {
+	lsp_prompt = "Searching...";
+	lsp_create_status_line();
 	/*
 	 * If we are in highlight mode and the current match is on
 	   the current page, we use it's position for this search.
@@ -4290,9 +4297,11 @@ static void lsp_cmd_open_manpage()
 
 	wrefresh(lsp_win);
 
+	curs_set(1);
 	echo();
 	wgetnstr(lsp_win, manpage_name, sizeof(manpage_name));
 	noecho();
+	curs_set(0);
 
 	lsp_open_manpage(manpage_name);
 }
@@ -4398,8 +4407,8 @@ static void lsp_create_status_line()
 		lsp_prompt = NULL;
 	}
 
-	x = lsp_maxx - (strlen(" (press h for help or q to quit)"));
-	mvwaddstr(lsp_win, lsp_maxy - 1, x, " (press h for help or q to quit)");
+	x = lsp_maxx - (strlen(" ('h'elp / 'q'uit)"));
+	mvwaddstr(lsp_win, lsp_maxy - 1, x, " ('h'elp / 'q'uit)");
 
 	wclrtoeol(lsp_win);
 
@@ -4407,6 +4416,7 @@ static void lsp_create_status_line()
 
 	wattr_set(lsp_win, A_NORMAL, LSP_DEFAULT_PAIR, NULL);
 
+	wrefresh(lsp_win);
 }
 
 /*
