@@ -26,6 +26,9 @@
 #include <curses.h>
 #include <fcntl.h>
 
+#define LSP_STR_EQ(a, b) (strcmp(a, b) == 0)
+#define LSP_STR_NEQ(a, b) (strcmp(a, b) != 0)
+
 /*
  * We store each file's content in a ring of buffers of size blksize.
  */

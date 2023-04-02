@@ -3828,7 +3828,7 @@ char** lsp_create_argv(char *format, char *str)
 	tok = strtok(strdup(format), " \t");
 
 	while (tok) {
-		if (!strcmp(tok, "%s"))
+		if (LSP_STR_EQ(tok, "%s"))
 			argv[i] = str;
 		else
 			argv[i] = tok;
@@ -3913,7 +3913,7 @@ static void lsp_exec_man()
 	 * Set file name to correct name of manual page.
 	 */
 	char *name = lsp_detect_manpage();
-	if (name == NULL || !strcmp(cf->name, name)) {
+	if (name == NULL || LSP_STR_EQ(cf->name, name)) {
 		free(name);
 		return;
 	}
@@ -4063,7 +4063,7 @@ static void lsp_files_list()
 		lsp_file_add_line(line);
 
 		file_p = file_p->prev;
-	} while (strcmp(file_p->name, "List of open files"));
+	} while (LSP_STR_NEQ(file_p->name, "List of open files"));
 
 	free(line);
 
@@ -4119,7 +4119,7 @@ static char *lsp_cmd_select_file()
 
 			/* The name *stdin* is a generated one that needs to be
 			   converted. */
-			if (!strcmp(line->raw, "*stdin*")) {
+			if (LSP_STR_EQ(line->raw, "*stdin*")) {
 				file_name = strdup("");
 			} else
 				file_name = strdup(line->raw);
@@ -4887,7 +4887,7 @@ static void lsp_workhorse()
 				lsp_file_set_pos(cf->page_first);
 			} else {
 				/* Allow to exit from help with 'q' */
-				if (!strcmp(cf->name, "lsp-help(1)")) {
+				if (LSP_STR_EQ(cf->name, "lsp-help(1)")) {
 					lsp_cmd_kill_file();
 				} else {
 					return;
@@ -4925,7 +4925,7 @@ static struct file_t *lsp_file_find(char *name)
 		return NULL;	/* No files in the ring yet. */
 
 	do {
-		if (!strcmp(file_p->name, name))
+		if (LSP_STR_EQ(file_p->name, name))
 			return file_p;
 		file_p = file_p->next;
 	} while (file_p != cf);
@@ -5357,7 +5357,7 @@ static void lsp_init()
 
 	setlocale(LC_CTYPE, "");
 
-	if (strcmp(nl_langinfo(CODESET), "UTF-8") == 0)
+	if (LSP_STR_EQ(nl_langinfo(CODESET), "UTF-8"))
 		lsp_utf_8 = TRUE;
 
 	lsp_cursor_y = 0;
