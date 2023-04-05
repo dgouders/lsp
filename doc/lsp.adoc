@@ -93,7 +93,9 @@ toggle case sensitivity for searches.
  This is used for example to verify references to other manual pages.
 
 *-l, --log-file*::
- Specify a path to where write debugging output.
+ Specify a path to where write debugging output. +
+ This needs to be a template according to mkstemp(3); a string ending
+ with six characters _XXXXXX_.
 
 *-n, --line-numbers*::
  Toggle visible line numbers.
@@ -103,8 +105,8 @@ toggle case sensitivity for searches.
 
 *--reload-command*::
  Specify command to load manual pages. +
- The given string should contain exactly one _%s_ which will be replaced by _<name>(<section>)_.
- Default is _man %s_.
+ The given string should contain exactly one _%s_ which will be
+ replaced by _<name>(<section>)_. Default is _man %s_.
 
 *-s, --search-string*::
  Specify an initial search string.
@@ -239,7 +241,7 @@ One that provides the path to a replacement file and the one that writes the con
 
 == See also
 
-*apropos*(1), *less*(1), *man*(1), *mandb*(8), *more*(1), *pg*(1)
+*apropos*(1), *less*(1), *man*(1), *mandb*(8), *mkstemp*(3), *more*(1), *pg*(1)
 
 == Bugs
 

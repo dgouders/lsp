@@ -1567,6 +1567,14 @@ static int lsp_error(const char *format, ...)
 	endwin();
 
 	va_start(ap, format);
+#if DEBUG
+	if (lsp_logfp) {
+		va_list apd;
+		va_copy(apd, ap);
+		vfprintf(lsp_logfp, format, apd);
+		va_end(apd);
+	}
+#endif
 	vfprintf(stderr, format, ap);
 	va_end(ap);
 
@@ -5334,16 +5342,27 @@ static void lsp_finish()
  */
 static void lsp_init_logfile()
 {
+	int log_fd;
+
 	if (lsp_logfp != NULL)
 		return;
 
-	if (lsp_logfile) {
-		lsp_logfp = fopen(lsp_logfile, "w+");
-		if (lsp_logfp == NULL)
-			lsp_error("%s: %s\n", lsp_logfile, strerror(errno));
-		setlinebuf(lsp_logfp);
-	} else
+	if (!lsp_logfile) {
 		lsp_logfp = stderr;
+		return;
+	}
+
+	log_fd = mkstemp(lsp_logfile);
+
+	if (log_fd == -1)
+		lsp_error("%s: %s\n", lsp_logfile, strerror(errno));
+
+	lsp_logfp = fdopen(log_fd, "w");
+
+	if (lsp_logfp == NULL)
+		lsp_error("%s: %s\n", lsp_logfile, strerror(errno));
+
+	setlinebuf(lsp_logfp);
 }
 #endif
 
