@@ -5204,6 +5204,7 @@ static void lsp_process_options(int argc, char *argv[])
 		{"search_string",	required_argument,	0, 's'},
 		{"version",		no_argument,		0, 'v'},
 		{"no-color",		no_argument,		0, '0'},
+		{"no-verify",		no_argument,		0, 'V'},
 		{"reload-command",	required_argument,	0, '1'},
 		{"verify-command",	required_argument,	0, '2'},
 		{"verify-with-apropos", no_argument,		0, '3'},
@@ -5211,7 +5212,7 @@ static void lsp_process_options(int argc, char *argv[])
 	};
 
 	while (1) {
-		opt = getopt_long(argc, argv, "achiIl:no:s:v",
+		opt = getopt_long(argc, argv, "achiIl:no:s:Vv",
 				  long_options, &long_index);
 
 		if (opt == -1)
@@ -5266,6 +5267,9 @@ static void lsp_process_options(int argc, char *argv[])
 		case 'v':
 			lsp_version();
 			exit(EXIT_SUCCESS);
+		case 'V':
+			lsp_verify = !lsp_verify;
+			break;
 		case 'h':
 		default:
 			lsp_usage(argv[0]);
