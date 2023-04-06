@@ -160,6 +160,7 @@ static int			lsp_file_getch(void);
 static void			lsp_file_init_ring(void);
 static void			lsp_file_init_stdin(void);
 static void			lsp_file_kill(void);
+static void			lsp_file_move_here(struct file_t *);
 static int			lsp_file_peek_bw(void);
 static int			lsp_file_peek_fw(void);
 static size_t			lsp_file_pos2line(off_t);

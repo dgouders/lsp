@@ -1903,6 +1903,31 @@ static int lsp_open_file(const char *name)
 }
 
 /*
+ * Make given file new predecessor of cf.
+ * We need this for switching open files in which case we want to maintain
+ * the ring of input files as a stack so that more recently active files get
+ * offered at the top of the list of open files.
+ */
+static void lsp_file_move_here(struct file_t *file_p)
+{
+	if (cf == file_p)
+		return;		/* We can't become our predecessor. */
+
+	if (cf->prev == file_p)
+		return;		/* file_p already is our predecessor. */
+
+	/* Extract file_p from its current position in the ring. */
+	file_p->prev->next = file_p->next;
+	file_p->next->prev = file_p->prev;
+
+	/* Make file_p cf's new predecessor. */
+	cf->prev->next = file_p;
+	file_p->prev = cf->prev;
+	cf->prev = file_p;
+	file_p->next = cf;
+}
+
+/*
  * Initialize ring of input files
  * Open the first given file (or stdin) for reading.
  */
@@ -4040,10 +4065,12 @@ static void lsp_files_list()
 {
 	size_t line_size = 1024;
 	char *line = lsp_malloc(line_size);
-	struct file_t *file_p = cf->prev;
+	struct file_t *file_p = cf;
+	/* cf will soon change; remember the file name from where we started. */
+	char *first_name = cf->name;
 
 	/* Do nothing if there is only a single file. */
-	if (cf == file_p) {
+	if (cf == cf->next) {
 		lsp_prompt = "No other files opened.";
 		return;
 	}
@@ -4070,8 +4097,12 @@ static void lsp_files_list()
 
 		lsp_file_add_line(line);
 
-		file_p = file_p->prev;
-	} while (LSP_STR_NEQ(file_p->name, "List of open files"));
+		file_p = file_p->next;
+
+		/* Don't offer ourselves for selection. */
+		if (LSP_STR_EQ(file_p->name, "List of open files"))
+			file_p = file_p->next;
+	} while (LSP_STR_NEQ(file_p->name, first_name));
 
 	free(line);
 
@@ -4081,10 +4112,14 @@ static void lsp_files_list()
 
 	/* Go to selected file or stay where we were if no file was
 	   selected. */
-	if (file_name != NULL)
-		cf = lsp_file_find(file_name);
-	else
-		cf = cf->prev;
+	if (file_name != NULL) {
+		struct file_t *file_p = lsp_file_find(file_name);
+
+		if (file_p != cf) {
+			lsp_file_move_here(file_p);
+			cf = cf->prev;
+		}
+	}
 
 	free(file_name);
 }
@@ -4100,7 +4135,7 @@ static char *lsp_cmd_select_file()
 {
 	size_t first_line;
 	size_t last_line;
-	size_t line_no = 0;
+	size_t line_no = 1;
 	struct lsp_line_t *line;
 	char *file_name;
 	lsp_prompt = "Select file and press ENTER.";
