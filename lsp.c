@@ -3902,19 +3902,19 @@ static void lsp_exec_man()
 		pid_t ret_pid = waitpid(pid, &wstatus, 0);
 
 		if (ret_pid == -1)
-			lsp_error("waitpid: %s\n", strerror(errno));
+			lsp_error("waitpid(%jd): %s\n", (intmax_t)pid, strerror(errno));
 
 		if (WIFEXITED(ret_pid)) {
-			lsp_debug("%s: child %d exited: %d",
-				  __func__, pid, WEXITSTATUS(wstatus));
+			lsp_debug("%s: child %jd exited: %d",
+				  __func__, (intmax_t)pid, WEXITSTATUS(wstatus));
 			break;
 		} else if (WIFSIGNALED(ret_pid)) {
-			lsp_debug("%s: child %d terminated by signal: %d (%s)",
-				  __func__, pid, WTERMSIG(wstatus), strsignal(WTERMSIG(wstatus)));
+			lsp_debug("%s: child %jd terminated by signal: %d (%s)",
+				  __func__, (intmax_t)pid, WTERMSIG(wstatus), strsignal(WTERMSIG(wstatus)));
 			break;
 		}
-		lsp_debug("%s: still waiting for child %d to exit...",
-			  __func__, pid);
+		lsp_debug("%s: still waiting for child %jd to exit...",
+			  __func__, (intmax_t)pid);
 	}
 
 	/*
