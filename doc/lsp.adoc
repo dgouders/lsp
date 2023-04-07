@@ -230,6 +230,8 @@ Find previous match in search.
 
 - In help-mode: close help file.
 
+- In file selection: exit selection without selecting a file; stay at the former one
+
 == Environment
 
 *LSP_OPTIONS*::

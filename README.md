@@ -74,28 +74,60 @@ OPTIONS
        -l, --log-file
            Specify a path to where write debugging output.
 
+           This needs to be a template according to mkstemp(3); a string
+           ending with six characters XXXXXX.
+
        -n, --line-numbers
            Toggle visible line numbers.
-
-       -s, --search-string
-           Specify an initial search string.
-
-       -v, --version
-           Output version information of lsp and exit.
 
        --no-color
            Disable colored output.
 
        --reload-command
-           Specify command to load manual pages. Default is man.
+           Specify command to load manual pages.
+
+           The given string should contain exactly one %s which will be
+           replaced by <name>(<section>). Default is man %s.
+
+       -s, --search-string
+           Specify an initial search string.
+
+           lsp then starts with searching for that string and positions to the
+           first match or displays an error message.
+
+       -V, --no-verify
+           Toggle verification of references.
+
+           Verification of references is an expensive procedure. On slow
+           machines users might want options in that case: this one can be
+           used to completely turn verification off. This comes at the cost
+           that unusable references might be presented.
+
+           By default verification is on.
+
+       -v, --version
+           Output version information of lsp and exit.
 
        --verify-command
-           Specify command to verify the existance of references. Default is
-           man -w.
+           Specify command to verify the existance of references.
+
+           The given string should contain exactly one %s which will be
+           replaced by <name>(<section>).
+
+           Default is man -w \"%s\" > /dev/null 2>&1.
 
        --verify-with-apropos
-           Use the entries of the apropos pseudo-file for validation of
+           Use the entries of the pseudo-file Apropos for validation of
            references.
+
+           This option can speed up verification of references significantly
+           but users should keep in mind that verification will then be as
+           reliable as the system’s manual page index is.
+
+           With this option, the first usage of TAB or Shift-TAB will load the
+           pseudo-file Apropos and create valid references for each of it’s
+           entries; all following reference actions will then be much faster
+           (approx. O(1)).
 
 COMMANDS
        Pg-Down / Pg-Up
@@ -170,6 +202,9 @@ COMMANDS
 
            •   In help-mode: close help file.
 
+           •   In file selection: exit selection without selecting a file;
+               stay at the former one
+
 ENVIRONMENT
        LSP_OPTIONS
            All command line options can also be specified using this variable.
@@ -182,10 +217,10 @@ ENVIRONMENT
            writes the content to be paged to a pipe.
 
 SEE ALSO
-       apropos(1), less(1), man(1), more(1), pg(1)
+       apropos(1), less(1), man(1), mandb(8), mkstemp(3), more(1), pg(1)
 
 BUGS
        Report bugs at https://github.com/dgouders/lsp
 
-0.1.0                             03/29/2023                            LSP(1)
+0.2.0                             04/07/2023                            LSP(1)
 ```
