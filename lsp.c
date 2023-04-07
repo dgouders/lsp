@@ -1455,7 +1455,7 @@ static ssize_t lsp_file_read_block(size_t size_to_read)
 	cf->seek += nread;
 
 	if (nread == 0) {
-		lsp_debug("%s: EOF detected for %s", __func__, cf->name);
+		lsp_debug("%s: EOF detected for %s at %ld", __func__, cf->name, cf->seek);
 
 		 /* We notice if a file is of unknown size and we read
 		    all data from it. */
@@ -3981,6 +3981,8 @@ static void lsp_cmd_resize()
 {
 	getmaxyx(lsp_win, lsp_maxy, lsp_maxx);
 
+	lsp_debug("%s: new geometry is %ldx%ld", __func__, lsp_maxx, lsp_maxy);
+
 	lsp_file_set_pos(cf->page_first);
 
 	if (cf->ftype == LSP_FTYPE_MANPAGE)
@@ -4022,18 +4024,22 @@ static void lsp_file_do_reload()
 {
 	lsp_mode_t old_mode;
 
-	if (cf->ftype == LSP_FTYPE_MANPAGE)
+	/* We reload manual pages only. */
+	if (cf->ftype == LSP_FTYPE_MANPAGE) {
 		lsp_exec_man();
 
-	if (cf->toc) {
-		lsp_toc_dtor(cf);
-		/* A TOC must be created in neutral mode (!toc).
-		   But we also want to stay in TOC mode if this is where the
-		   resize happened. */
-		old_mode = cf->mode;
-		lsp_mode_unset_toc();
-		lsp_file_create_toc();
-		cf->mode = old_mode;
+		/* If there was a TOC all it's entries now have invalid
+		   pointers (at a high possibility).  Rebuild it. */
+		if (cf->toc) {
+			lsp_toc_dtor(cf);
+			/* A TOC must be created in neutral mode (!toc).
+			   But we also want to stay in TOC mode if this is where the
+			   resize happened. */
+			old_mode = cf->mode;
+			lsp_mode_unset_toc();
+			lsp_file_create_toc();
+			cf->mode = old_mode;
+		}
 	}
 }
 
