@@ -23,12 +23,12 @@
 disk and from standard input, e.g. manual pages.
 .SH Interacting with \fBlsp\fR
 .TS
-tab(;);
+center tab(;);
 cfI s.
 General keys
 _
 .T&
-cw(1i)|l.
+c|l.
 \fBKeyboard / Mouse\fR;\fBAction\fR
 _
 q;T{
@@ -46,7 +46,7 @@ cfI s.
 Handling manual pages
 _
 .T&
-cw(1i)|l.
+c|l.
 \fBKeyboard / Mouse\fR;\fBAction\fR
 _
 TAB;go to next valid reference in the manual page
@@ -56,37 +56,25 @@ _
 ENTER;open current reference
 _
 a;T{
-.ba
-show apropos(1) buffer of all manual pages on the
+show apropos(1) buffer of all manual pages on the system
 .br
-system
-.br
-(The above commands can then be used to visit those
-.br
-references.)
+(The above commands can then be used to visit those references.)
 T}
 _
-.T&
-c|l.
 m;open another manual page
 _
 T;T{
-TOC mode: toggle through three levels of a TOC
-.br
-(or folding) mode:
+TOC mode: toggle through three levels of a TOC (or folding) mode:
 .br
 1) Only content starting in column 1 is shown.
 .br
 2) Additionaly, content starting in column 4 is shown.
 .br
 3) Add content starting in column 8,
-.br
 but only if it is followed by a line with deeper
-.br
 indentation.
 .br
 This mode is left by pressing 'q' or ENTER to jump
-.br
 to the highlighted entry.
 T}
 _
@@ -97,8 +85,6 @@ _
 .T&
 c|l.
 \fBKeyboard / Mouse\fR;\fBAction\fR
-.T&
-c|l.
 _
 b
 Page up;backward one page
@@ -112,16 +98,13 @@ f
 Page down
 SPACE;forward one page
 _
-T{
-<
-T};backward to first page
+<;backward to first page
 _
-T{
->
-T};forward to last page
+>;forward to last page
 _
-C-l;In a search:
-;bring the current match to the top of the page
+C-l;T{
+In a search: bring the current match to the top of the page
+T}
 _
 .T&
 cfI s.
@@ -151,9 +134,7 @@ B;show list of open files for selection
 _
 ENTER;switch to selected file
 _
-T{
-c
-T};kill (close) active file
+c;kill (close) active file
 _
 .T&
 cfI s.
@@ -163,8 +144,10 @@ _
 c|l.
 \fBKeyboard / Mouse\fR;\fBAction\fR
 _
--c;toggle chopping of lines that do not fit the current
-;width of the screen.
+-c;T{
+toggle chopping of lines that do not fit the current width of the
+screen.
+T}
 _
 <ESC>
 -h;toggle highlighting of search matches
