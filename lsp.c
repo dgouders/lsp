@@ -49,7 +49,7 @@
  * Lines
  * -----
  *   When data blocks are read each block is inspected for newline
- *   characters and for each line it's start position in the file is
+ *   characters and for each line its start position in the file is
  *   stored in an array cf->lines.
  *
  *   Lines in cf->lines are indexed zero-based but for the outside
@@ -1333,7 +1333,7 @@ static void lsp_file_close()
  * Add a line of text to a file.
  *
  * Our assumption: this is a small internal file that we use e.g. for
- * a list of all open files and it's content can be held in one single
+ * a list of all open files and its content can be held in one single
  * block of memory.
  */
 static ssize_t lsp_file_add_line(const char *line)
@@ -2459,7 +2459,7 @@ static int lsp_cmp_line_pos(size_t line_no, off_t pos)
  * That number is returned 1-based.
  *
  * Search for the line in cf->lines array that starts at <= pos with
- * it's following line starting at > pos.
+ * its following line starting at > pos.
  */
 static size_t lsp_file_pos2line(off_t pos)
 {
@@ -2525,7 +2525,7 @@ static bool lsp_ref_is_valid(struct gref_t *gref)
 
 	/*
 	 * If apropos(1) is used for verification create the apropos buffer
-	 * which will add grefs for all it's content.
+	 * which will add grefs for all its content.
 	 *
 	 * Save current file and mode, because they get reset by creating the
 	 * apropos file and then switching back to the current file.
@@ -2724,7 +2724,7 @@ static void lsp_file_search_prev(lsp_mode_t search_mode)
 
 	/* Set start position for search:
 	   If we are in highlight mode and the current match is on
-	   the current page, we use it's position to start this search.
+	   the current page, we use its position to start this search.
 	   Otherwise we search from the top of the page backwards.*/
 	if (lsp_mode_is_highlight() &&
 	    lsp_pos_is_current_page(cf->current_match.rm_so))
@@ -2804,7 +2804,7 @@ static void lsp_file_search_next(lsp_mode_t search_mode)
 	lsp_create_status_line();
 	/*
 	 * If we are in highlight mode and the current match is on
-	   the current page, we use it's position for this search.
+	   the current page, we use its position for this search.
 	   Otherwise we start at the top of the page.*/
 	if (lsp_mode_is_highlight() &&
 	    lsp_pos_is_current_page(cf->current_match.rm_so)) {
@@ -3122,7 +3122,7 @@ static size_t lsp_mbtowc(wchar_t *wc_p, const char *mb_p, size_t n)
 
 	if (ch_len == 0) {
 		/* L'\0' found.
-		   We take it as is but return 1 for it's length. */
+		   We take it as is but return 1 for its length. */
 		wc_p[0] = mb_p[0];
 		ch_len = 1;
 	} else if (ch_len == (size_t)-1) {
@@ -3334,7 +3334,7 @@ static void lsp_display_page()
 			/* Convert next wide character */
 			ch_len = lsp_mbtowc(ch, line->raw + lindex, line->len - lindex);
 
-			/* Also get it's following two characters */
+			/* Also get its following two characters */
 			if (lindex + ch_len == line->len) {
 				//assert(ch[0] == '\n');
 				/* Force newline at the end of the line. */
@@ -4215,7 +4215,7 @@ static void lsp_file_forward_words(size_t nwords)
 }
 
 /*
- * Reposition the just reloaded file as close as possible to it's previous
+ * Reposition the just reloaded file as close as possible to its previous
  * position.
  *
  * We use the name of the viewed section of the manual page plus the count of
@@ -4264,7 +4264,7 @@ static void lsp_file_do_reload()
 
 	lsp_exec_man();
 
-	/* If there was a TOC all it's entries now have invalid
+	/* If there was a TOC all its entries now have invalid
 	   pointers (at a high possibility).  Rebuild it. */
 	if (cf->toc) {
 		lsp_toc_dtor(cf);
@@ -5223,7 +5223,7 @@ static struct file_t *lsp_file_find(char *name)
  * Argument "new_current" steers if it becomes the new current_file or
  * if it is inserted before it.
  *
- * In the first case current_file will become it's predecessor in the
+ * In the first case current_file will become its predecessor in the
  * ring of input files.
  */
 static void lsp_file_add(char *name, bool new_current)
@@ -5575,7 +5575,7 @@ static void lsp_grefs_dtor()
 	while (lsp_grefs != NULL) {
 		free(lsp_grefs->name);
 
-		/* Safe next ptr before freeing it's container. */
+		/* Safe next ptr before freeing its container. */
 		next = lsp_grefs->next;
 
 		free(lsp_grefs);
