@@ -253,17 +253,8 @@ static size_t lsp_get_sgr_len(const char *seq)
 		    (seq[sgr_len] >= '0' && seq[sgr_len] <= '9'))
 			continue;
 
-		if (seq[sgr_len] == '<') {
-			/* Private sequence (first seen in Linus' git tree).
-			   We deactivate it by ignoring the '\e' char:
-			   return 1 which means the sequence consists of the
-			   single character '\e'. */
-			return 1;
-		}
-
-		lsp_error("%s: unknown char \"%c\" in SGR sequence \"\\e%s\".\n",
-			  __func__, seq[sgr_len], seq+1);
-
+		/* Not a SGR sequence. */
+		return -1;
 	}
 
 	return sgr_len + 1;
@@ -288,10 +279,6 @@ static size_t lsp_decode_sgr(const char *seq, attr_t *attr, short *pair)
 	sgr_len = lsp_get_sgr_len(seq);
 
 	if (sgr_len == (size_t)-1)
-		return sgr_len;
-
-	if (sgr_len == 1)
-		/* Ignore/deactivate the sequence. */
 		return sgr_len;
 
 	if (sgr_len == 3) {
@@ -550,7 +537,8 @@ static bool lsp_is_sgr_sequence(const char *c)
 	if (*(c + 1) != '[')
 		return false;
 
-	return true;
+	return lsp_get_sgr_len(c) != -1;
+
 }
 
 /*
