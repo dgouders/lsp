@@ -3999,47 +3999,284 @@ static void lsp_cmd_resize()
 	}
 }
 
-static void lsp_file_reload()
+/*
+ * Count all the words inside the section of a manual page.
+ *
+ * - Move backward until we reach a section header or the beginning of the
+ *   file.
+ *
+ * - Then, move forward and count all words in the following lines until we
+ *   reach the next section header or EOF.
+ */
+static size_t lsp_man_count_words_in_section()
 {
-	lsp_file_reset();
+	struct lsp_line_t *line;
+	size_t wcnt = 0;
 
-	lsp_file_do_reload();
+	lsp_goto_bol();
 
-	cf->do_reload = false;
-
-	/* Fix pointers */
-	if (cf->page_first > cf->size) {
-		lsp_file_set_pos(cf->size);
-		lsp_file_backward(0);
-	} else {
-		lsp_file_set_pos(cf->page_first);
-		lsp_goto_bol();
+	/*
+	 * Find section header
+	 */
+	while (1) {
+		char ch;
+		ch = lsp_file_getch();
+		if (!isspace(ch))
+			break;
+		lsp_file_set_prev_line();
 	}
 
-	cf->page_first = lsp_pos;
-	lsp_set_no_current_match();
+	line = lsp_get_this_line();
+
+	/*
+	 * Count words in all lines until we reach EOF or the next section
+	 * header.
+	 */
+	while (1) {
+		lsp_line_dtor(line);
+		line = lsp_get_line_from_here();
+
+		if (!line)
+			break;
+
+		if (!(isspace(line->raw[0])))
+			break;
+
+		wcnt += lsp_line_count_words(line);
+	}
+
+	lsp_line_dtor(line);
+	return wcnt;
+}
+
+/*
+ * Return the number of words in the normalized part of the given line.
+ */
+static size_t lsp_line_count_words(struct lsp_line_t *line)
+{
+	char *ptr;
+	size_t wcnt = 0;
+
+	if (!line)
+		return 0;
+
+	ptr = line->normalized;
+
+	while (*ptr != '\0') {
+		/* Skip blanks. */
+		while (*ptr != '\0' && isblank(*ptr))
+			ptr++;
+
+		if (*ptr == '\0')
+			break;
+
+		/* A new word starts here. */
+		wcnt++;
+
+		/* Go to end of word. */
+		while (*ptr != '\0' && !isblank(*ptr))
+			ptr++;
+	}
+
+	return wcnt;
+}
+
+/*
+ * For the given position: find the containing section and while doing that
+ * count the words and empty lines the area up to the section heading
+ * contain (see lsp_reposition in lsp.h).
+ */
+static char *lsp_man_get_section(off_t pos)
+{
+	struct lsp_line_t *line;
+	bool count_empty_lines = false;
+	char *section_name = NULL;
+
+	lsp_reposition.words = 0;
+	lsp_reposition.elines = 0;
+
+	if (cf->ftype != LSP_FTYPE_MANPAGE)
+		lsp_error("%s: file \"%s\" is not a manual page.", __func__, cf->name);
+
+	lsp_file_set_pos(pos);
+	line = lsp_get_this_line();
+
+	while (isspace(line->normalized[0])) {
+		lsp_line_dtor(line);
+		lsp_file_set_prev_line();
+		line = lsp_file_get_prev_line();
+
+		assert(line != NULL);
+
+		if (line->raw[0] == '\n') {
+			count_empty_lines = true;
+			lsp_reposition.elines++;
+		} else {
+			if (!count_empty_lines)
+				lsp_reposition.words += lsp_line_count_words(line);
+		}
+	}
+
+	/*
+	 * The beginning of a manual page isn't really the start of a section
+	 * but because that line changes on horizontal resizes, we handle it as
+	 * a pseudo one.
+	 */
+	if (line->pos == 0)
+		section_name = strdup("_start_of_manual_page_");
+	else
+		section_name = strdup(line->normalized);
+
+	lsp_line_dtor(line);
+
+	lsp_debug("%s: found section \"%s\" (and %ld words plus %ld empty lines to reach it).",
+		  __func__, section_name, lsp_reposition.words, lsp_reposition.elines);
+
+	return section_name;
+}
+
+/*
+ * Position cf to the given section.
+ *
+ * Because the top of manual pages also start at column 0, we consider them
+ * sections with the special name "_start_of_manual_page_".
+ */
+static void lsp_man_goto_section(char *section)
+{
+	bool proceed = true;
+	struct lsp_line_t *line;
+
+	lsp_file_set_pos(0);
+
+	if (LSP_STR_EQ(section, "_start_of_manual_page_"))
+		return;
+
+	while (proceed) {
+		line = lsp_get_this_line();
+
+		if (LSP_STR_EQ(line->normalized, section))
+			proceed = false;
+
+		lsp_line_dtor(line);
+	}
+}
+
+static void lsp_file_forward_empty_lines(size_t nlines)
+{
+	struct lsp_line_t *line;
+
+	if (!nlines)
+		return;
+
+	while (nlines) {
+		line = lsp_get_this_line();
+
+		assert(line != NULL);
+
+		if (line->raw[0] == '\n')
+			nlines--;
+
+		lsp_line_dtor(line);
+	}
+}
+
+/*
+ * From the current position: adjust the position forward the given number of
+ * words.
+ * The final position will be the beginnig of the line that contains the
+ * remaining words to satisfy nwords.
+ */
+static void lsp_file_forward_words(size_t nwords)
+{
+	struct lsp_line_t *line;
+	size_t wcnt;
+
+	if (!nwords) {
+		//lsp_file_set_prev_line();
+		//lsp_goto_bol();
+		return;
+	}
+
+	while (1) {
+		line = lsp_get_this_line();
+
+		assert(line != NULL);
+
+		wcnt = lsp_line_count_words(line);
+
+		if (wcnt > nwords)
+			break;
+
+		nwords -= wcnt;
+
+		lsp_line_dtor(line);
+	}
+
+	lsp_file_set_pos(line->pos);
+	lsp_line_dtor(line);
+}
+
+/*
+ * Reposition the just reloaded file as close as possible to it's previous
+ * position.
+ *
+ * We use the name of the viewed section of the manual page plus the count of
+ * empty lines plus the count of words to the exact position.
+ *
+ * fixme: it could happen that we didn't find empty lines on our way backwards
+ *        to the section header, or, we could have found a lot of words before
+ *        we found the first blank line.  In that case hyphenation could cause
+ *        unsatisfactory repositioning results and we could then perhaps count
+ *        all words in the section and use the relation to the found words to
+ *        get better results.  That has to be tested...
+ */
+static void lsp_man_reposition(char *section)
+{
+	lsp_man_goto_section(section);
+
+	lsp_file_forward_empty_lines(lsp_reposition.elines);
+
+	lsp_file_forward_words(lsp_reposition.words);
+}
+
+static void lsp_file_reload()
+{
+	/* We reload manual pages only. */
+	if (cf->ftype == LSP_FTYPE_MANPAGE) {
+		char *saved_man_section = lsp_man_get_section(cf->page_first);
+
+		lsp_file_reset();
+
+		lsp_file_do_reload();
+
+		cf->do_reload = false;
+
+		lsp_man_reposition(saved_man_section);
+
+		free(saved_man_section);
+
+		cf->page_first = lsp_pos;
+		lsp_set_no_current_match();
+	}
 }
 
 static void lsp_file_do_reload()
 {
 	lsp_mode_t old_mode;
 
-	/* We reload manual pages only. */
-	if (cf->ftype == LSP_FTYPE_MANPAGE) {
-		lsp_exec_man();
+	lsp_exec_man();
 
-		/* If there was a TOC all it's entries now have invalid
-		   pointers (at a high possibility).  Rebuild it. */
-		if (cf->toc) {
-			lsp_toc_dtor(cf);
-			/* A TOC must be created in neutral mode (!toc).
-			   But we also want to stay in TOC mode if this is where the
-			   resize happened. */
-			old_mode = cf->mode;
-			lsp_mode_unset_toc();
-			lsp_file_create_toc();
-			cf->mode = old_mode;
-		}
+	/* If there was a TOC all it's entries now have invalid
+	   pointers (at a high possibility).  Rebuild it. */
+	if (cf->toc) {
+		lsp_toc_dtor(cf);
+		/* A TOC must be created in neutral mode (!toc).
+		   But we also want to stay in TOC mode if this is where the
+		   resize happened. */
+		old_mode = cf->mode;
+		lsp_mode_unset_toc();
+		lsp_file_create_toc();
+		cf->mode = old_mode;
 	}
 }
 

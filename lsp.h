@@ -155,6 +155,8 @@ static void			lsp_file_data_dtor(struct data_t *);
 static void			lsp_file_do_reload(void);
 static void			lsp_file_dtor(struct file_t *);
 static struct file_t *		lsp_file_find(char *);
+static void			lsp_file_forward_empty_lines(size_t);
+static void			lsp_file_forward_words(size_t);
 static struct lsp_line_t *	lsp_file_get_prev_line(void);
 static int			lsp_file_getch(void);
 static void			lsp_file_init_ring(void);
@@ -201,6 +203,7 @@ static bool			lsp_is_at_bol(void);
 static bool			lsp_is_no_match(regmatch_t);
 static bool			lsp_is_sgr_sequence(const char *);
 static void			lsp_line_add_screen_lines(struct lsp_line_t *);
+static size_t			lsp_line_count_words(struct lsp_line_t *);
 static struct lsp_line_t *	lsp_line_ctor(void);
 static void			lsp_line_cut_tail(struct lsp_line_t *, off_t);
 static void			lsp_line_dtor(struct lsp_line_t *);
@@ -209,6 +212,9 @@ static void			lsp_line_fw_screen_line(struct lsp_line_t *);
 static size_t			lsp_line_get_matches(const struct lsp_line_t *, regmatch_t **);
 static void			lsp_lines_add(off_t);
 static void *			lsp_malloc(size_t);
+static char *			lsp_man_get_section(off_t);
+static void			lsp_man_goto_section(char *);
+static void			lsp_man_reposition(char *);
 static size_t			lsp_mbtowc(wchar_t *, const char *, size_t);
 static bool			lsp_mode_is_highlight(void);
 static bool			lsp_mode_is_refs(void);
@@ -471,5 +477,21 @@ char *lsp_env_open;
 size_t lsp_htable_entries;
 /* We count grefs -- just to be able to lookup that number. */
 size_t lsp_grefs_count;
+
+/*
+ * Counter for words and empty lines for repositioning after reload of manual
+ * pages.
+ *
+ * For this we count the words inside the current section up to an empty line or
+ * the section header.  If it wasn't the section header we then continue to
+ * count empty lines until the section header.
+ *
+ * The motivation for counting empty lines is to leave out as many word counts
+ * as possible because hyphenation makes this a more or less unreliable value.
+ */
+struct {
+	size_t words;
+	size_t elines;
+} lsp_reposition;
 
 #endif // _LSP_H_GUARD_
