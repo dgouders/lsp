@@ -1222,6 +1222,16 @@ static struct lsp_line_t *lsp_get_line_from_here()
 	line->normalized = lsp_normalize(str, pos);
 	line->nlen = strlen(line->normalized);
 
+	/*
+	 * Finally, if the file size is still unknown, peek forward one byte to
+	 * probably trigger EOF if this was the last line in the file.
+	 *
+	 * This fixes problems when we display files whose last lines happen to
+	 * be the last one on a page.
+	 */
+	if (cf->size == LSP_FSIZE_UNKNOWN)
+		lsp_file_peek_fw();
+
 	return line;
 }
 
