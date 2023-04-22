@@ -104,9 +104,12 @@ toggle case sensitivity for searches.
  Disable colored output.
 
 *--reload-command*::
- Specify command to load manual pages. +
- The given string should contain exactly one _%s_ which will be
- replaced by _<name>(<section>)_. Default is _man %s_.
+ Specify command to (re)load manual pages. +
+ The given string must contain exactly one _%n_ and one _%s_. +
+_%n_ is a placeholder for the name of the manual page and _%s_ is one
+for the section.
++
+Default is "_man %n.%s_".
 
 *-s, --search-string*::
  Specify an initial search string.
@@ -129,9 +132,11 @@ By default verification is *on*.
 
 *--verify-command*::
  Specify command to verify the existance of references. +
- The given string should contain exactly one _%s_ which will be replaced by _<name>(<section>)_.
+ The given string must contain exactly one _%n_ and one _%s_. +
+_%n_ is a placeholder for the name of the manual page and _%s_ is one
+for the section.
 +
-Default is _man -w \"%s\" > /dev/null 2>&1_.
+Default is "_man -w \"%n.%s\" > /dev/null 2>&1_".
 
 *--verify-with-apropos*::
  Use the entries of the pseudo-file _Apropos_ for validation of

@@ -84,10 +84,14 @@ OPTIONS
            Disable colored output.
 
        --reload-command
-           Specify command to load manual pages.
+           Specify command to (re)load manual pages.
 
-           The given string should contain exactly one %s which will be
-           replaced by <name>(<section>). Default is man %s.
+           The given string must contain exactly one %n and one %s.
+
+           %n is a placeholder for the name of the manual page and %s is one
+           for the section.
+
+           Default is "man %n.%s".
 
        -s, --search-string
            Specify an initial search string.
@@ -111,10 +115,12 @@ OPTIONS
        --verify-command
            Specify command to verify the existance of references.
 
-           The given string should contain exactly one %s which will be
-           replaced by <name>(<section>).
+           The given string must contain exactly one %n and one %s.
 
-           Default is man -w \"%s\" > /dev/null 2>&1.
+           %n is a placeholder for the name of the manual page and %s is one
+           for the section.
+
+           Default is "man -w \"%n.%s\" > /dev/null 2>&1".
 
        --verify-with-apropos
            Use the entries of the pseudo-file Apropos for validation of
@@ -149,7 +155,7 @@ COMMANDS
 
            •   If previous command was TAB or S-TAB:
 
-               Open reference at point, i.e. call `man <reference>'.
+               Open reference at point, i.e. call ‘man <reference>'.
 
            •   In TOC-mode:
 
@@ -165,7 +171,7 @@ COMMANDS
            Change buffer; choose from list.
 
        a
-           Create a pseudo-file with the output of `apropos .'.
+           Create a pseudo-file with the output of ‘apropos .'.
 
            That pseudo-file contains short descriptions for all manual pages
            known to the system; those manual pages can also be opened with TAB
@@ -222,5 +228,5 @@ SEE ALSO
 BUGS
        Report bugs at https://github.com/dgouders/lsp
 
-0.2.0                             04/07/2023                            LSP(1)
+0.2.0                             04/22/2023                            LSP(1)
 ```

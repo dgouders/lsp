@@ -2516,7 +2516,8 @@ static size_t lsp_file_pos2line(off_t pos)
 }
 
 /*
- * Verify if a reference is known to man(1).
+ * Verify a reference.
+ * Usually this means: check if it is known to man(1).
  */
 static bool lsp_ref_is_valid(struct gref_t *gref)
 {
@@ -2542,26 +2543,151 @@ static bool lsp_ref_is_valid(struct gref_t *gref)
 		return gref->valid == 1;
 	}
 
-	/* Calculate length of command string.
-	   First part is the length of the format string minus 2 bytes
-	   conversion specifier. */
-	cmd_len = strlen(lsp_verify_command) - 2;
+	/* Duplicate verify command.
+	 * In a few moments, we need to replace %n by %s for sprintf(3) -- but
+	 * we don't want to do that in the original string. */
+	char *format = strdup(lsp_verify_command);
 
-	/* Next part is the length of gref name plus terminator. */
-	cmd_len += strlen(gref->name) + 1;
+	/* Calculate length of command string.
+	 * First part is the length of the format string minus 4 bytes
+	 * conversion specifier. */
+	cmd_len = strlen(format) - 4;
+
+	/* Next part is the length of gref name
+	   minus 2 bytes for parentheses plus one byte terminator. */
+	cmd_len += (strlen(gref->name) - 2) + 1;
 
 	char *command = lsp_malloc(cmd_len);
 
-	sprintf(command, lsp_verify_command, gref->name);
+	/* Now, position to the first placeholder so that we can check if
+	   name or section comes first. */
+	char *cptr = strchr(format, '%') + 1;
+
+	if (cptr == (void *)1)
+		lsp_error("%s: no %% character in verify command.\n", __func__);
+
+	/* Extract name and section from gref name. */
+	struct man_id m_id = lsp_create_man_id(gref->name);
+
+	if (cptr[0] == 'n') {
+		cptr[0] = 's';
+		sprintf(command, format, m_id.name, m_id.section);
+	} else {
+		cptr = strchr(cptr, '%') + 1;
+		cptr[0] = 's';
+		sprintf(command, format, m_id.section, m_id.name);
+	}
+
+	lsp_delete_man_id(&m_id);
 
 	ret = system(command);
 
 	lsp_debug("%s: reference %s is %s",
 		  __func__, command, ret == 0 ? "valid" : "invalid");
 
+	free(format);
 	free(command);
 
 	return ret == 0;
+}
+
+/*
+ * Create a man_id structure with separate name and section strings.
+ *
+ * The given string s could have one of four formats:
+ *
+ * - "name(section)"
+ * - "name.section"
+ * - "section name"
+ * - "name"
+ *
+ * In the last case, section will be set to "".
+ *
+ * Return the created structure.
+ */
+static struct man_id lsp_create_man_id(const char *s)
+{
+	struct man_id m_id;
+
+	char *nam;
+	size_t nam_len;
+	char *sec;
+	size_t sec_len;
+
+	lsp_debug("%s: create from \"%s\".", __func__, s);
+
+	/* Handle format "name(section)"
+	   Left and right parentheses mark the end of the name,
+	   the start of the section and the end of the section. */
+	char *lp = strchr(s, '(');
+	if (lp) {
+		char *rp = strchr(lp + 1, ')');
+
+		if (!rp)
+			lsp_error("%s: no right parenthesis found: \"%s\".\n",
+				  __func__, s);
+
+		nam = (char *)s;
+		nam_len = 1 + lp - s;
+		sec = lp + 1;		/* section follows left parenthesis. */
+		sec_len = 1 + rp - sec;
+
+		goto finish;
+	}
+
+	/* Handle format "name.section" */
+	char *dot = strrchr(s, '.');
+	if (dot) {
+		nam = (char *)s;
+		nam_len = 1 + dot - s;
+		sec = dot + 1;
+		sec_len = 1 + strlen(sec);
+
+		goto finish;
+	}
+
+	/* Handle format "section name" */
+	char *space = strchr(s, ' ');
+	if (space) {
+		nam = space + 1;
+		nam_len = 1 + strlen(nam);
+		sec = (char *)s;
+		sec_len = 1 + space - s;
+
+		goto finish;
+	}
+
+	/* Handle format "name" */
+	nam = (char *)s;
+	nam_len = strlen(s) + 1;
+	sec = "";
+	sec_len = 1;
+
+finish:
+	/*
+	 * Fill final structure with prepared parts.
+	 */
+	m_id.name = lsp_calloc(1, nam_len);
+	m_id.section = lsp_calloc(1, sec_len);
+
+	memcpy(m_id.name, nam, nam_len - 1);
+	memcpy(m_id.section, sec, sec_len - 1);
+
+	lsp_debug("%s: result is \"%s.%s\".", __func__, m_id.name, m_id.section);
+
+	return m_id;
+}
+
+/*
+ * Free memory used by a man_id.
+ */
+static void lsp_delete_man_id(struct man_id *m_id)
+{
+	if (!m_id)
+		return;
+
+	free(m_id->section);
+	free(m_id->name);
 }
 
 /*
@@ -3336,7 +3462,6 @@ static void lsp_display_page()
 
 			/* Also get its following two characters */
 			if (lindex + ch_len == line->len) {
-				//assert(ch[0] == '\n');
 				/* Force newline at the end of the line. */
 				next_ch = L'\n';
 			} else {
@@ -3842,34 +3967,106 @@ static void lsp_open_manpage(char *name)
 }
 
 /*
- * Create argument vector for exec().
+ * Create argument vector for loading a manual page.
  *
- * For now, we expect a format string that contains exactly one "%s" to be
- * replaced by the second argument str.
+ * We expect a format string that contains exactly one "%s" and one "%n"
+ * and a string that specifies the manual page to load, e.g. "man.1"; for other
+ * possible formats see lsp_create_man_id().
  */
 char** lsp_create_argv(char *format, char *str)
 {
 	char **argv = lsp_malloc(sizeof(char *));
 	char *tok;
 	unsigned int i = 0;
+	struct man_id m_id;
 
-	lsp_debug("%s: building argv for \"%s\" and \"%s\"", __func__, format, str);
+	lsp_debug("%s: building argv: format = \"%s\", str = \"%s\"",
+		  __func__, format, str);
 
-	/* Get first token. */
-	tok = strtok(strdup(format), " \t");
+	/* Extract name and section from given str. */
+	m_id = lsp_create_man_id(str);
 
+	/* Calculate length of expanded format string; we begin with the length
+	 * of the format minus 4 bytes for %n and %s (which we will replace)
+	 * plus one byte terminator. */
+	size_t f_len = (strlen(format) - 4) + 1;
+
+	/* Now add the lengths of name and section that replace %n and %s. */
+	f_len += strlen(m_id.name) + strlen(m_id.section);
+
+	char *format_dup = lsp_calloc(1, f_len);
+
+	/* Duplicate format string and replace %n and %s. */
+	size_t dup_ptr = 0;
+	while (*format) {
+		if (format[0] != '%') {
+			/* Just copy "normal" characters. */
+			format_dup[dup_ptr++] = format[0];
+			format++;
+			continue;
+		}
+
+		/* Replace %n or %s */
+		format++;
+		switch (format[0]) {
+		case 'n':
+			/* Expand name (%n). */
+			strcat(format_dup, m_id.name);
+			dup_ptr += strlen(m_id.name);
+			break;
+		case 's':
+			/* Expand section (%s).
+			 * We will try to be smart and cope with optional
+			 * sections.
+			 * For this, we need to handle formats "name.section"
+			 * and "name(section)": ignore the dot or parentheses if
+			 * no section is given.
+			 */
+			if (m_id.section[0]) {
+				strcat(format_dup, m_id.section);
+				dup_ptr += strlen(m_id.section);
+				break;
+			}
+
+			if (dup_ptr == 0)
+				break;
+
+			if (format_dup[dup_ptr - 1] == '.') {
+				dup_ptr--;
+				format_dup[dup_ptr] = '\0';
+				break;
+			}
+
+			if (format_dup[dup_ptr - 1] == '(') {
+				dup_ptr--;
+				format_dup[dup_ptr] = '\0';
+				format++;
+				break;
+			}
+		}
+		format++;
+	}
+
+	lsp_debug("%s: expanded format string = \"%s\"", __func__, format_dup);
+
+	tok = strtok(format_dup, " ");
+
+	/*
+	 * Fill argv[] with space-separated tokens.
+	 */
 	while (tok) {
-		if (LSP_STR_EQ(tok, "%s"))
-			argv[i] = str;
-		else
-			argv[i] = tok;
+		lsp_debug("%s: found token %s.", __func__, tok);
+		argv[i] = strdup(tok);
 
 		/* Get next token. */
-		tok = strtok(NULL, " \t");
+		tok = strtok(NULL, " ");
 
 		i++;
 		argv = lsp_realloc(argv, (i + 1) * sizeof(char *));
 	}
+
+	lsp_delete_man_id(&m_id);
+	free(format_dup);
 
 	/* Terminate argv. */
 	argv[i] = NULL;
@@ -5456,6 +5653,33 @@ static void lsp_process_env_options()
 	free(lsp_options);
 }
 
+/*
+ * Check if the given string contains exactly the two
+ * placeholders "%n" and "%s".
+ */
+static bool lsp_has_man_placeholders(const char *str)
+{
+	int n_count = 0;
+	int s_count = 0;
+
+	for (int i = 0; str[i]; i++) {
+		if (str[i] == '%') {
+			if (str[i + 1] == 'n') {
+				n_count++;
+				continue;
+			}
+			if (str[i + 1] == 's') {
+				s_count++;
+				continue;
+			}
+			/* Unknown placeholder */
+			return false;
+		}
+	}
+
+	return (n_count == 1) && (s_count == 1);
+}
+
 static void lsp_process_options(int argc, char *argv[])
 {
 	int opt;
@@ -5502,11 +5726,15 @@ static void lsp_process_options(int argc, char *argv[])
 		case '1':
 			/* --reload-command */
 			lsp_reload_command = strdup(optarg);
-			break;
+			if (lsp_has_man_placeholders(lsp_reload_command))
+				break;
+			lsp_error("--reload-command requires exactly one %%n and one %%s!\n");
 		case '2':
 			/* --verify-command */
 			lsp_verify_command = strdup(optarg);
-			break;
+			if (lsp_has_man_placeholders(lsp_verify_command))
+				break;
+			lsp_error("--verify-command requires exactly one %%n and one %%s!\n");
 		case '3':
 			/* --verify-with-apropos */
 			lsp_verify_with_apropos = true;
@@ -5673,9 +5901,9 @@ static void lsp_init()
 	lsp_load_apropos = false;
 	lsp_apropos_command = strdup("apropos . | sort | sed 's/ (/(/'");
 
-	lsp_reload_command = strdup("man %s");
+	lsp_reload_command = strdup("man %n.%s");
 
-	lsp_verify_command = strdup("man -w \"%s\" > /dev/null 2>&1");
+	lsp_verify_command = strdup("man -w %n.%s > /dev/null 2>&1");
 
 	lsp_verify_with_apropos = false;
 
