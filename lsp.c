@@ -548,7 +548,7 @@ static bool lsp_is_at_bol()
 {
 	/* We define the beginning of a file to be the beginning of
 	   a (the first) line, as well. */
-	return lsp_pos <= 0 || lsp_file_peek_bw() == '\n';
+	return lsp_pos <= 0 || lsp_file_peek_bw() == '\n' || lsp_pos == cf->size;
 }
 
 /*
