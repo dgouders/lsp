@@ -1074,7 +1074,7 @@ static void lsp_line_add_screen_lines(struct lsp_line_t *line)
 			/* Add onother screen line. */
 			scrlp += 1;
 			line->n_scr_line += 1;
-			line->scr_line = lsp_realloc(line->scr_line, line->n_scr_line);
+			line->scr_line = lsp_realloc(line->scr_line, line->n_scr_line * sizeof(line->scr_line[0]));
 			line->scr_line[scrlp] = i;
 			current_len = 0;
 
