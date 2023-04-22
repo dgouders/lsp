@@ -228,5 +228,5 @@ SEE ALSO
 BUGS
        Report bugs at https://github.com/dgouders/lsp
 
-0.2.0                             04/22/2023                            LSP(1)
+0.3.0                             04/22/2023                            LSP(1)
 ```
