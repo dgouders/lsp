@@ -403,7 +403,7 @@ int lsp_maxx;
 enum { LSP_FW = 0, LSP_BW };
 
 /* Regular expression to match references, e.g. lsp(1) */
-char *lsp_search_ref_string = "[A-Za-z0-9\b.:_+-]+\\((n|[0-9])[^)]{0,8}\\)";
+char *lsp_search_ref_string = "[[A-Za-z0-9\b.:_+-]+\\((n|[0-9])[^)]{0,8}\\)";
 int lsp_search_direction;
 char lsp_search_string[256];
 char lsp_search_string_old[256];
