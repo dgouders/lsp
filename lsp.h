@@ -25,6 +25,7 @@
 #include <regex.h>
 #include <curses.h>
 #include <fcntl.h>
+#include <sys/types.h>
 
 #define LSP_STR_EQ(a, b) (strcmp(a, b) == 0)
 #define LSP_STR_NEQ(a, b) (strcmp(a, b) != 0)
@@ -226,6 +227,7 @@ static void *			lsp_malloc(size_t);
 static char *			lsp_man_get_section(off_t);
 static void			lsp_man_goto_section(char *);
 static void			lsp_man_reposition(char *);
+static uint			lsp_mblen(const char *, size_t);
 static size_t			lsp_mbtowc(wchar_t *, const char *, size_t);
 static bool			lsp_mode_is_highlight(void);
 static bool			lsp_mode_is_refs(void);

@@ -1231,6 +1231,7 @@ static struct lsp_line_t *lsp_get_line_from_here()
 static size_t lsp_normalize_count(const char *str, size_t length)
 {
 	size_t nlen;
+	uint ch_len;
 	size_t i;
 
 	if (!length)
@@ -1241,9 +1242,11 @@ static size_t lsp_normalize_count(const char *str, size_t length)
 			  "str: \"%s\"\n", __func__, length, strlen(str), str);
 
 	/* Process the string ignoring <char>\b sequences and SGR sequences. */
-	for (i = 0, nlen = 0; nlen < length; i++) {
+	for (i = 0, nlen = 0; nlen < length; i += ch_len) {
+		/* Get length of possible multibyte char. */
+		ch_len = lsp_mblen(str + i, length - nlen);
 
-		if (str[i + 1] == '\b') {
+		if (str[i + ch_len] == '\b') {
 			/* Ignore this c and the following \b */
 			i++;
 			continue;
@@ -1253,7 +1256,7 @@ static size_t lsp_normalize_count(const char *str, size_t length)
 			i += lsp_get_sgr_len(str + i);
 		}
 
-		nlen++;
+		nlen += ch_len;
 	}
 
 	return i;
@@ -1273,6 +1276,7 @@ static size_t lsp_normalize_count(const char *str, size_t length)
 static char *lsp_normalize(const char *str, size_t length)
 {
 	char *normalized;
+	uint ch_len;
 	size_t nlen;
 	size_t i;
 
@@ -1282,8 +1286,11 @@ static char *lsp_normalize(const char *str, size_t length)
 	normalized = lsp_malloc(length + 1);
 
 	/* Copy the string ignoring c\b sequences */
-	for (i = 0, nlen = 0; i < length; i++) {
-		if (str[i+1] == '\b') {
+	for (i = 0, nlen = 0; i < length; i += ch_len) {
+		/* Get length of possible multibyte char. */
+		ch_len = lsp_mblen(str + i, length - i);
+
+		if (str[i + ch_len] == '\b') {
 			/* Ignore this c and the following \b */
 			i++;
 			continue;
@@ -1293,7 +1300,9 @@ static char *lsp_normalize(const char *str, size_t length)
 			i += lsp_get_sgr_len(str + i);
 		}
 
-		normalized[nlen++] = str[i];
+		/* Copy the char to normalized string. */
+		memcpy(normalized + nlen, str + i, ch_len);
+		nlen += ch_len;
 	}
 
 	normalized[nlen++] = '\0';
@@ -3235,6 +3244,23 @@ static size_t lsp_line_get_matches(const struct lsp_line_t *line, regmatch_t **p
 }
 
 /*
+ * Determine length of multibyte character and handle special cases (-1).
+ */
+static uint lsp_mblen(const char *mb_p, size_t n)
+{
+	int ret = mblen(mb_p, n);
+
+	if (ret == -1) {
+		lsp_debug("%s: could not determine length of multibyte character: \"%s[%d]\"",
+			  __func__, mb_p, n);
+		/* Treat the char as non-multibyte. */
+		return 1;
+	}
+
+	return ret;
+}
+
+/*
  * Convert multibyte sequence to wide character and handle errors.
  *
  * Currently, we distinguish three special conditions but do the same for all of
@@ -3714,6 +3740,17 @@ static void lsp_line_fw_screen_line(struct lsp_line_t *line)
 	int i = 0;
 	int n = 0;
 	wchar_t ch;
+
+	/* We can just forward the full line if the normalized string fits within
+	   the width of the window.
+	   This is kind of conservative, because the normalized string could
+	   still consist of multibyte characters and consume even fewer
+	   columns than the byte count implies.	*/
+	if (lsp_maxx >= line->nlen) {
+		line->pos += line->len;
+		line->len = line->nlen = 0;
+		return;
+	}
 
 	while (n < lsp_maxx && i < line->nlen) {
 		if (line->normalized[i] == '\n') {
