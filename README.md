@@ -83,6 +83,9 @@ OPTIONS
        --no-color
            Disable colored output.
 
+       -o, --output-file
+           Specify output file to duplicate read input.
+
        --reload-command
            Specify command to (re)load manual pages.
 
@@ -228,5 +231,5 @@ SEE ALSO
 BUGS
        Report bugs at https://github.com/dgouders/lsp
 
-0.3.0                             04/22/2023                            LSP(1)
+0.3.0-2023-11-02                  11/02/2023                            LSP(1)
 ```
