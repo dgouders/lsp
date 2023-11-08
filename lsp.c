@@ -1696,41 +1696,28 @@ static void lsp_file_data_dtor(struct data_t *data)
 }
 
 /*
- * Find a tty device for user command input.
- * Usually this should be stdout but if it is no tty we test stderr, as
- * well.
+ * Open the controlling terminal for user command input.
  */
-static void lsp_find_tty_input()
+static void lsp_open_cterm()
 {
-	char *tty_path;
-	if (isatty(STDOUT_FILENO)) {
-		tty_path = ttyname(STDOUT_FILENO);
-		lsp_debug("%s: using stdout (%s) for command input",
-			  __func__, tty_path);
-	} else if (isatty(STDERR_FILENO)) {
-		tty_path = ttyname(STDERR_FILENO);
-		lsp_debug("%s: using stderr (%s) for command input",
-			  __func__, tty_path);
-	} else
-		lsp_error("Cannot find tty input device...\n");
+	const char *cterm = ctermid(NULL);
 
-	lsp_debug("%s: trying to open %s...", __func__, tty_path);
+	lsp_debug("%s: opening cterm %s for command input...", __func__, cterm);
 
-	int in_fd = open(tty_path, 0, "r");
+	int in_fd = open(cterm, 0, "r");
 
 	if (in_fd == -1)
-		lsp_error("%s: %s: %s\n", __func__, tty_path, strerror(errno));
+		lsp_error("%s: %s: %s\n", __func__, cterm, strerror(errno));
 
 	if (in_fd != STDIN_FILENO)
 		lsp_error("TTY input fd (%d) != STDIN_FILENO.\n", in_fd);
-
 }
 
 /*
  * Initialize stdin as the only data input.
  *
- * We first move the file descriptor away from STDIN_FILENO and then open a tty
- * device (stdout or stderr) as the then free to use STDIN_FILENO for reading
+ * We first move the file descriptor away from STDIN_FILENO and then open the
+ * controlling terminal as the then free-to-use STDIN_FILENO for reading
  * user commands.
  */
 static void lsp_file_init_stdin()
@@ -1751,15 +1738,15 @@ static void lsp_file_init_stdin()
 	cf->size = LSP_FSIZE_UNKNOWN;
 	cf->blksize = statbuf.st_blksize;
 
-	/* Move stdin to something > 2 and see if we can use stdout or stderr as
-	 * the one we use for the user to communicate with us. */
+	/* Move stdin to something > 2 and and then use the controlling terminal
+	 * as the one we use for the user to communicate with us. */
 	cf->fd = dup(STDIN_FILENO);
 	close(STDIN_FILENO);
 
 	if (cf->fd <= 2)
 		lsp_debug("%s: file descriptor did not become > 2.\n", __func__);
 
-	lsp_find_tty_input();
+	lsp_open_cterm();
 
 	lsp_file_add_block();
 
@@ -1775,9 +1762,13 @@ static void lsp_file_init_stdin()
 /*
  * Initialization of input stream for user commands.
  *
+ * This function is only for cases when we get a filename as an argument and
+ * want to read commands from the given stdin.
+ *
  * This is necessary, because pipelines like e.g.
- * `bzcat /usr/share/man/man1/mandoc.1.bz2 | mandoc -l` give us an empty FIFO
- * and not the user's terminal device as stdin.
+ * `bzcat /usr/share/man/man1/mandoc.1.bz2 | mandoc -l` call us with the name of
+ * a temporary file and give us an empty FIFO as stdin -- not the (controlling)
+ * terminal device.
  */
 static void lsp_init_cmd_input()
 {
@@ -1810,7 +1801,7 @@ static void lsp_init_cmd_input()
 			/* EOF on stdin.
 			   Close it and try to find a tty to use. */
 			fclose(stdin);
-			lsp_find_tty_input();
+			lsp_open_cterm();
 		}
 	}
 }
