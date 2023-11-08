@@ -93,7 +93,7 @@ static void *lsp_malloc(size_t size)
 	void *ptr = malloc(size);
 
 	if (ptr == NULL) {
-		lsp_error("%s: %s\n", __func__, strerror(errno));
+		lsp_error("%s: %s", __func__, strerror(errno));
 	}
 
 	return ptr;
@@ -104,7 +104,7 @@ static void *lsp_calloc(size_t nmemb, size_t size)
 	void *ptr = calloc(nmemb, size);
 
 	if (ptr == NULL) {
-		lsp_error("%s: %s\n", __func__, strerror(errno));
+		lsp_error("%s: %s", __func__, strerror(errno));
 	}
 
 	return ptr;
@@ -115,7 +115,7 @@ static void *lsp_realloc(void *ptr, size_t size)
 	void *ret_ptr = realloc(ptr, size);
 
 	if (ret_ptr == NULL) {
-		lsp_error("%s: %s\n", __func__, strerror(errno));
+		lsp_error("%s: %s", __func__, strerror(errno));
 	}
 
 	return ret_ptr;
@@ -152,7 +152,7 @@ static char *lsp_detect_manpage()
 	int ret = regcomp(&preg, regex_str, REG_EXTENDED);
 
 	if (ret != 0)
-		lsp_error("%s: regcomp() failed: %d\n", __func__, ret);
+		lsp_error("%s: regcomp() failed: %d", __func__, ret);
 
 	free(regex_str);
 
@@ -214,7 +214,7 @@ static void lsp_file_align_buffer()
 			cf->data = cf->data->next;
 
 		if (here == cf->data)
-			lsp_error("%s: Endless loop while aligning buffers.\n",
+			lsp_error("%s: Endless loop while aligning buffers.",
 				  __func__);
 	}
 
@@ -645,7 +645,7 @@ static void lsp_file_toc_add(const struct lsp_line_t *line, int level)
 
 	/* Ensure lines are added in strictly ascending order. */
 	if (line->pos <= cf->toc->pos)
-		lsp_error("%s: TOC must be created top down (%ld after %ld).\n",
+		lsp_error("%s: TOC must be created top down (%ld after %ld).",
 			  __func__, line->pos, cf->toc->pos);
 
 	toc_new_p = lsp_calloc(1, sizeof(struct toc_node_t));
@@ -693,7 +693,7 @@ static void lsp_toc_dtor(struct file_t *file)
 static void lsp_toc_rewind(off_t pos)
 {
 	if (!cf->toc)
-		lsp_error("%s: called without active TOC for %s\n",
+		lsp_error("%s: called without active TOC for %s",
 			  __func__, cf->name);
 
 	if (pos == (off_t)-1) {
@@ -703,7 +703,7 @@ static void lsp_toc_rewind(off_t pos)
 		lsp_toc_bw(lsp_maxy - 2);
 	} else {
 		if (!lsp_pos_is_toc(pos))
-			lsp_error("%s: called with invalid TOC position %ld\n",
+			lsp_error("%s: called with invalid TOC position %ld",
 				  __func__, pos);
 
 		/* Go to pos */
@@ -877,7 +877,7 @@ again:
 
 	if (cf->seek > lsp_pos && lsp_pos < (cf->data->seek + cf->blksize)) {
 		if (lsp_pos < cf->data->seek)
-			lsp_error("%s: problem with buffer ring!\n"
+			lsp_error("%s: problem with buffer ring!"
 				  "lsp_pos  = %ld, cf->data->seek = %ld\n",
 				  __func__, lsp_pos, cf->data->seek);
 		/* Next byte is in this buffer */
@@ -890,7 +890,7 @@ again:
 		lsp_file_add_block();
 
 		if (once > 0)
-			lsp_error("%s: unexpected recursion.\n", __func__);
+			lsp_error("%s: unexpected recursion.", __func__);
 
 		once++;	 /* Watch recursion depth */
 		goto again;
@@ -1238,7 +1238,7 @@ static size_t lsp_normalize_count(const char *str, size_t length)
 		return 0;
 
 	if (length > strlen(str))
-		lsp_error("%s: length %ld > than strlen(str) %ld\n"
+		lsp_error("%s: length %ld > than strlen(str) %ld"
 			  "str: \"%s\"\n", __func__, length, strlen(str), str);
 
 	/* Process the string ignoring <char>\b sequences and SGR sequences. */
@@ -1313,7 +1313,7 @@ static char *lsp_normalize(const char *str, size_t length)
 
 	/* ...or error out if our heuristics failed. */
 	if ((length + 1) < nlen)
-		lsp_error("Allocated only %ld bytes for string of %ld bytes\n",
+		lsp_error("Allocated only %ld bytes for string of %ld bytes",
 			  length + 1, nlen);
 
 	return normalized;
@@ -1518,7 +1518,7 @@ static void lsp_lines_add(off_t next_line)
 	}
 
 	if (next_line < cf->lines[cf->lines_count - 1])
-		lsp_error("%s: line offsets not increasing: line %ld@%ld vs. line %ld@%ld.\n",
+		lsp_error("%s: line offsets not increasing: line %ld@%ld vs. line %ld@%ld.",
 			  __func__, cf->lines_count, cf->lines[cf->lines_count - 1],
 			  cf->lines_count + 1, next_line);
 
@@ -1583,6 +1583,7 @@ static int lsp_error(const char *format, ...)
 	}
 #endif
 	vfprintf(stderr, format, ap);
+	fprintf(stderr, "\n");
 	va_end(ap);
 
 	/* Check if curses has been initialized and do cleanup */
@@ -1707,10 +1708,10 @@ static void lsp_open_cterm()
 	int in_fd = open(cterm, 0, "r");
 
 	if (in_fd == -1)
-		lsp_error("%s: %s: %s\n", __func__, cterm, strerror(errno));
+		lsp_error("%s: %s: %s", __func__, cterm, strerror(errno));
 
 	if (in_fd != STDIN_FILENO)
-		lsp_error("TTY input fd (%d) != STDIN_FILENO.\n", in_fd);
+		lsp_error("TTY input fd (%d) != STDIN_FILENO.", in_fd);
 }
 
 /*
@@ -1727,7 +1728,7 @@ static void lsp_file_init_stdin()
 	lsp_debug("No input files given -- checking stdin...");
 
 	if (isatty(STDIN_FILENO))
-		lsp_error("STDIN is a tty; we don't support that -- yet.\n");
+		lsp_error("STDIN is a tty; we don't support that -- yet.");
 
 	/* This should be a name an ordinary file couldn't conflict with.
 	   Let's use the the empty string. */
@@ -1780,10 +1781,10 @@ static void lsp_init_cmd_input()
 
 	if (result != 0) {
 		if (result == EBADF)
-			lsp_error("%s: STDIN_FILENO not open for reading.\n",
+			lsp_error("%s: STDIN_FILENO not open for reading.",
 				  __func__);
 		else
-			lsp_error("%s: STDIN_FILENO: %s\n", __func__, strerror(errno));
+			lsp_error("%s: STDIN_FILENO: %s", __func__, strerror(errno));
 	}
 
 	if (!isatty(STDIN_FILENO)) {
@@ -1795,7 +1796,7 @@ static void lsp_init_cmd_input()
 		result = read(STDIN_FILENO, &c, 1);
 
 		if (result == -1)
-			lsp_error("%s: stdin: read failed: %s\n", __func__, strerror(errno));
+			lsp_error("%s: stdin: read failed: %s", __func__, strerror(errno));
 
 		if (result == 0) {
 			/* EOF on stdin.
@@ -1831,7 +1832,7 @@ static int lsp_open_file(const char *name)
 		FILE *fp = popen(cmd + 1, "r");
 
 		if (fp == NULL) {
-			lsp_error("%s: could not popen(\"%s\").\n", __func__, lsp_env_open);
+			lsp_error("%s: could not popen(\"%s\").", __func__, lsp_env_open);
 		}
 
 		/*
@@ -1871,7 +1872,7 @@ static int lsp_open_file(const char *name)
 		FILE *fp = popen(cmd, "r");
 
 		if (fp == NULL) {
-			lsp_error("%s: could not popen(\"%s\").\n", __func__, lsp_env_open);
+			lsp_error("%s: could not popen(\"%s\").", __func__, lsp_env_open);
 		}
 
 		size_t nread = 0;
@@ -1880,7 +1881,7 @@ static int lsp_open_file(const char *name)
 			nread += fread(buffer + nread, 1, sizeof(buffer) - nread, fp);
 
 			if (nread == sizeof(buffer))
-				lsp_error("%s: replacement file name too long.\n", __func__);
+				lsp_error("%s: replacement file name too long.", __func__);
 		}
 
 		pclose(fp);
@@ -1947,13 +1948,13 @@ static void lsp_file_init_ring()
 		lsp_open_file(cf->name);
 
 		if (cf->fd == -1)
-			lsp_error("%s: %s\n", cf->name, strerror(errno));
+			lsp_error("%s: %s", cf->name, strerror(errno));
 
 		if (fstat(cf->fd, &statbuf) == -1)
-			lsp_error("%s: %s\n", cf->name, strerror(errno));
+			lsp_error("%s: %s", cf->name, strerror(errno));
 
 		if (!(S_ISREG(statbuf.st_mode) || S_ISFIFO(statbuf.st_mode)))
-			lsp_error("%s: %s: unsupported file type.\n",
+			lsp_error("%s: %s: unsupported file type.",
 				  __func__, cf->name);
 
 		/* We know sizes only of regular files. */
@@ -2004,7 +2005,7 @@ static int lsp_init_screen()
 	/* Make white a bit whiter.  1000 is max. */
 	int ret = init_color(COLOR_WHITE, 909, 909, 909);
 	if (ret == ERR)
-		lsp_error("%s: Could not change color.\n", __func__);
+		lsp_error("%s: Could not change color.", __func__);
 
 	cbreak();
 	noecho();
@@ -2326,7 +2327,7 @@ static int lsp_gref_henter(struct gref_t *gref_p)
 	ep = hsearch(e, ENTER);
 
 	if (ep == NULL)
-		lsp_error("Enter \"%s\" into hash table: %s\n", gref_p->name, strerror(errno));
+		lsp_error("Enter \"%s\" into hash table: %s", gref_p->name, strerror(errno));
 
 	return 0;
 }
@@ -2376,7 +2377,7 @@ static struct gref_t *lsp_gref_search(char *name)
 		int ret = hcreate(lsp_htable_entries);
 
 		if (ret == 0)
-			lsp_error("hcreate(): %s\n", strerror(errno));
+			lsp_error("hcreate(): %s", strerror(errno));
 	}
 
 	/* gref not found: add it. */
@@ -2564,7 +2565,7 @@ static bool lsp_ref_is_valid(struct gref_t *gref)
 	char *cptr = strchr(format, '%') + 1;
 
 	if (cptr == (void *)1)
-		lsp_error("%s: no %% character in verify command.\n", __func__);
+		lsp_error("%s: no %% character in verify command.", __func__);
 
 	/* Extract name and section from gref name. */
 	struct man_id m_id = lsp_create_man_id(gref->name);
@@ -2624,7 +2625,7 @@ static struct man_id lsp_create_man_id(const char *s)
 		char *rp = strchr(lp + 1, ')');
 
 		if (!rp)
-			lsp_error("%s: no right parenthesis found: \"%s\".\n",
+			lsp_error("%s: no right parenthesis found: \"%s\".",
 				  __func__, s);
 
 		nam = (char *)s;
@@ -2753,7 +2754,7 @@ static void lsp_cmd_search(bool get_string)
 	if (get_string) {
 		/* Read search string */
 		if (wmove(lsp_win, lsp_maxy - 1, 0) == ERR)
-			lsp_error("wmove failed.\n");
+			lsp_error("wmove failed.");
 		wattr_set(lsp_win, A_NORMAL, LSP_DEFAULT_PAIR, NULL);
 
 		if (lsp_search_direction == LSP_FW)
@@ -3017,7 +3018,7 @@ struct gref_t *lsp_get_gref_at_pos(regmatch_t pos)
 	struct lsp_line_t *line = lsp_get_line_at_pos(pos.rm_so);
 
 	if (!line) {
-		lsp_error("%s: could not get a line at pos %ld\n",
+		lsp_error("%s: could not get a line at pos %ld",
 			  __func__, pos);
 	}
 
@@ -3069,7 +3070,7 @@ static void lsp_search_align_to_match()
 static void lsp_search_align_toc_to_match()
 {
 	if (lsp_is_no_match(cf->current_match))
-		lsp_error("%s: function called with no active match\n",
+		lsp_error("%s: function called with no active match",
 			  __func__);
 
 	size_t match_line = lsp_file_pos2line(cf->current_match.rm_so);
@@ -3099,7 +3100,7 @@ static void lsp_search_align_toc_to_match()
 static void lsp_search_align_page_to_match()
 {
 	if (lsp_is_no_match(cf->current_match))
-		lsp_error("%s: function called with no active match\n",
+		lsp_error("%s: function called with no active match",
 			  __func__);
 
 	size_t match_line = lsp_file_pos2line(cf->current_match.rm_so);
@@ -3313,7 +3314,7 @@ static struct lsp_line_t *lsp_get_next_display_line()
 			line = lsp_get_line_at_pos(cf->toc->pos);
 
 			if (!line)
-				lsp_error("%s: could not get line at pos %ld\n",
+				lsp_error("%s: could not get line at pos %ld",
 					  __func__, cf->toc->pos);
 		}
 	} else {
@@ -3896,7 +3897,7 @@ static void lsp_screen_line_bw(int n)
 		screen_line++;
 
 		if (screen_line == line->n_scr_line)
-			lsp_error("Cannot find start of current page.\n");
+			lsp_error("Cannot find start of current page.");
 	}
 
 	/*
@@ -4126,7 +4127,7 @@ static void lsp_exec_man()
 		char **e_argv = lsp_create_argv(lsp_reload_command, cf->name);
 
 		execvp(e_argv[0], e_argv);
-		lsp_error("execvp() failed.\n");
+		lsp_error("execvp() failed.");
 	}
 
 	cf->fd = ptmxfd;
@@ -4150,7 +4151,7 @@ static void lsp_exec_man()
 		pid_t ret_pid = waitpid(pid, &wstatus, 0);
 
 		if (ret_pid == -1)
-			lsp_error("waitpid(%jd): %s\n", (intmax_t)pid, strerror(errno));
+			lsp_error("waitpid(%jd): %s", (intmax_t)pid, strerror(errno));
 
 		if (WIFEXITED(wstatus)) {
 			lsp_debug("%s: child %jd exited: %d",
@@ -4728,7 +4729,7 @@ static void lsp_cmd_create_apropos()
 	FILE *fp = popen(lsp_apropos_command, "r");
 
 	if (fp == NULL) {
-		lsp_error("%s: could not popen(\"%s\").\n", __func__, lsp_apropos_command);
+		lsp_error("%s: could not popen(\"%s\").", __func__, lsp_apropos_command);
 	}
 
 	/* Remember that we need to pclose(3) this pipe. */
@@ -4797,7 +4798,7 @@ static void lsp_cmd_open_manpage()
 
 	/* Read name of manpage */
 	if (wmove(lsp_win, lsp_maxy - 1, 0) == ERR)
-		lsp_error("wmove failed.\n");
+		lsp_error("wmove failed.");
 	wattr_set(lsp_win, A_NORMAL, LSP_DEFAULT_PAIR, NULL);
 
 	mvwaddstr(lsp_win, lsp_maxy - 1, 0, "Enter name of manpage, e.g. xyz(n): ");
@@ -5102,7 +5103,7 @@ static void lsp_toc_first_adjust()
 		toc = toc->next;
 
 	if (!toc)
-		lsp_error("%s: cannot find proper TOC entry.\n", __func__);
+		lsp_error("%s: cannot find proper TOC entry.", __func__);
 
 	cf->toc_first = toc;
 }
@@ -5405,7 +5406,7 @@ static void lsp_workhorse()
 			lsp_display_page();
 			break;
 		case ERR:
-			lsp_error("%s: cannot read user commands.\n", __func__);
+			lsp_error("%s: cannot read user commands.", __func__);
 		}
 
 		lsp_create_status_line();
@@ -5621,11 +5622,11 @@ static void lsp_parse_env_options(int *argc, char **argv[], char *options)
 	(*argc)++;
 
 	if (ac1 != *argc)
-		lsp_error("%s: problem with counting options: %d vs %d\n",
+		lsp_error("%s: problem with counting options: %d vs %d",
 			  __func__, ac1, *argc);
 
 	if (in_quotes == TRUE)
-		lsp_error("%s: unmatched quotes in options: %s.\n",
+		lsp_error("%s: unmatched quotes in options: %s.",
 			  __func__, options);
 
 }
@@ -5756,13 +5757,13 @@ static void lsp_process_options(int argc, char *argv[])
 			lsp_reload_command = strdup(optarg);
 			if (lsp_has_man_placeholders(lsp_reload_command))
 				break;
-			lsp_error("--reload-command requires exactly one %%n and one %%s!\n");
+			lsp_error("--reload-command requires exactly one %%n and one %%s!");
 		case '2':
 			/* --verify-command */
 			lsp_verify_command = strdup(optarg);
 			if (lsp_has_man_placeholders(lsp_verify_command))
 				break;
-			lsp_error("--verify-command requires exactly one %%n and one %%s!\n");
+			lsp_error("--verify-command requires exactly one %%n and one %%s!");
 		case '3':
 			/* --verify-with-apropos */
 			lsp_verify_with_apropos = true;
@@ -5891,12 +5892,12 @@ static void lsp_init_logfile()
 	log_fd = mkstemp(lsp_logfile);
 
 	if (log_fd == -1)
-		lsp_error("%s: %s\n", lsp_logfile, strerror(errno));
+		lsp_error("%s: %s", lsp_logfile, strerror(errno));
 
 	lsp_logfp = fdopen(log_fd, "w");
 
 	if (lsp_logfp == NULL)
-		lsp_error("%s: %s\n", lsp_logfile, strerror(errno));
+		lsp_error("%s: %s", lsp_logfile, strerror(errno));
 
 	setlinebuf(lsp_logfp);
 }
