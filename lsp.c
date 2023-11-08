@@ -1744,7 +1744,7 @@ static void lsp_file_init_stdin()
 	close(STDIN_FILENO);
 
 	if (cf->fd <= 2)
-		lsp_debug("%s: file descriptor did not become > 2.\n", __func__);
+		lsp_debug("%s: file descriptor did not become > 2.", __func__);
 
 	lsp_open_cterm();
 
@@ -4624,7 +4624,7 @@ static char *lsp_cmd_select_file()
 			/* Remove the final newline '\n'.*/
 			line->raw[line->len - 1] = '\0';
 
-			lsp_debug("%s: selected file %s\n", __func__, line->raw);
+			lsp_debug("%s: selected file %s", __func__, line->raw);
 
 			/* The name *stdin* is a generated one that needs to be
 			   converted. */
