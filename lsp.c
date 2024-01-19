@@ -3549,7 +3549,7 @@ static void lsp_display_page()
 					}
 
 					/* Notice the end of the match */
-					if (pmatch[i].rm_eo + 1 == lindex) {
+					if (pmatch[i].rm_eo == lindex) {
 						attr = attr_old;
 						pair = pair_old;
 						match_active = 0;
