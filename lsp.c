@@ -1259,6 +1259,9 @@ static size_t lsp_normalize_count(const char *str, size_t length)
 
 	/* Process the string ignoring <char>\b sequences and SGR sequences. */
 	for (i = 0, nlen = 0; nlen < length; i += ch_len) {
+		/* Ignore possible SGR sequence */
+		i += lsp_skip_sgr(str + i);
+
 		/* Get length of possible multibyte char. */
 		ch_len = lsp_mblen(str + i, str_len - i);
 
@@ -1267,9 +1270,6 @@ static size_t lsp_normalize_count(const char *str, size_t length)
 			i++;
 			continue;
 		}
-
-		/* Ignore possible SGR sequence */
-		i += lsp_skip_sgr(str + i);
 
 		nlen += ch_len;
 	}
@@ -1302,6 +1302,9 @@ static char *lsp_normalize(const char *str, size_t length)
 
 	/* Copy the string ignoring c\b sequences */
 	for (i = 0, nlen = 0; i < length; i += ch_len) {
+		/* Ignore possible SGR sequence */
+		i += lsp_skip_sgr(str + i);
+
 		/* Get length of possible multibyte char. */
 		ch_len = lsp_mblen(str + i, length - i);
 
@@ -1310,9 +1313,6 @@ static char *lsp_normalize(const char *str, size_t length)
 			i++;
 			continue;
 		}
-
-		/* Ignore possible SGR sequence */
-		i += lsp_skip_sgr(str + i);
 
 		/* Copy the char to normalized string. */
 		memcpy(normalized + nlen, str + i, ch_len);
