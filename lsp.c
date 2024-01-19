@@ -3400,7 +3400,7 @@ static void lsp_display_page()
 	size_t match_index = 0;
 
 	/* Index of pmatch array that is the current match */
-	ssize_t lsp_cm_index = -1;
+	ssize_t lsp_cm_index;
 
 	attr_t attr;
 	short pair;
@@ -3442,6 +3442,9 @@ static void lsp_display_page()
 				sgr_active = 1;
 
 		lsp_line_dtor(line);
+
+		/* We didn't hit the current match when starting a new line. */
+		lsp_cm_index = -1;
 
 		line = lsp_get_next_display_line();
 
