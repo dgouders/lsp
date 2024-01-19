@@ -1238,7 +1238,7 @@ static size_t lsp_normalize_count(const char *str, size_t length)
 		return 0;
 
 	if (length > strlen(str))
-		lsp_error("%s: length %ld > than strlen(str) %ld"
+		lsp_error("%s: length %ld > strlen(str) %ld "
 			  "str: \"%s\"\n", __func__, length, strlen(str), str);
 
 	/* Process the string ignoring <char>\b sequences and SGR sequences. */
@@ -2095,8 +2095,9 @@ static regmatch_t lsp_search_find_prev_match(struct lsp_line_t **line)
 			if (ret != 0)
 				break;
 
-			lsp_debug("%s: regexec match \"%s\"",
-				  __func__, (*line)->normalized + offset);
+			lsp_debug("%s: regexec match[%u]: \"%s\"",
+				  __func__, pmatch[0].rm_eo - pmatch[0].rm_so,
+				  (*line)->normalized + offset);
 
 			/* Store offsets relative to line start. */
 			match.rm_so = offset + pmatch[0].rm_so;
@@ -2210,8 +2211,10 @@ static regmatch_t lsp_search_toc_next()
 			      1, pmatch, eflags);
 
 		if (ret == 0) {
-			lsp_debug("%s: regexec match \"%s\"",
-				  __func__, line->normalized + offset);
+			lsp_debug("%s: regexec match[%u]: \"%s\"",
+				  __func__, pmatch[0].rm_eo - pmatch[0].rm_so,
+				  line->normalized + offset);
+
 			match.rm_so = line->pos +
 				lsp_normalize_count(line->raw,
 						    offset + pmatch[0].rm_so);
@@ -2293,8 +2296,10 @@ static regmatch_t lsp_search_file_next()
 			      1, pmatch, eflags);
 
 		if (ret == 0) {
-			lsp_debug("%s: regexec match \"%s\"",
-				  __func__, line->normalized + offset);
+			lsp_debug("%s: regexec match[%u]: \"%s\"",
+				  __func__, pmatch[0].rm_eo - pmatch[0].rm_so,
+				  line->normalized + offset);
+
 			match.rm_so = line->pos +
 				lsp_normalize_count(line->raw,
 						    offset + pmatch[0].rm_so);
@@ -3532,6 +3537,10 @@ static void lsp_display_page()
 					   coords for positioning the cursor, later. */
 					if (lsp_cm_index == i && pmatch[i].rm_eo <= lindex) {
 							getyx(lsp_win, cf->cmatch_y, cf->cmatch_x);
+
+							lsp_debug("Current match position = %d,%d",
+								  cf->cmatch_y, cf->cmatch_x);
+
 							lsp_cm_index = -1;
 					}
 				}
