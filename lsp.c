@@ -240,6 +240,20 @@ static void lsp_goto_bol()
 }
 
 /*
+ * Return length needed to skip leading SGR sequence(s) in given string.
+ */
+static size_t lsp_skip_sgr(const char *str)
+{
+	size_t i = 0;
+
+	/* Skip possible SGR sequences */
+	while (lsp_is_sgr_sequence(str + i))
+		i += lsp_get_sgr_len(str + i);
+
+	return i;
+}
+
+/*
  * Calculate length of SGR sequence and check for unknown characters.
  *
  * Return length or -1 if sequence is invalid.
@@ -1080,9 +1094,9 @@ static void lsp_line_add_screen_lines(struct lsp_line_t *line)
 
 			new_screen_line = 1;
 		}
-		/* Eat up possible SGR sequences */
-		while (lsp_is_sgr_sequence(line->raw + i))
-			i += lsp_get_sgr_len(line->raw + i);
+
+		/* Ignore possible SGR sequences */
+		i += lsp_skip_sgr(line->raw + i);
 
 		/* If we are in a new screen line and it consists of just a
 		   newline (plus possible SGR sequences) we don't count this
@@ -1254,9 +1268,8 @@ static size_t lsp_normalize_count(const char *str, size_t length)
 			continue;
 		}
 
-		while (lsp_is_sgr_sequence(str + i)) {
-			i += lsp_get_sgr_len(str + i);
-		}
+		/* Ignore possible SGR sequence */
+		i += lsp_skip_sgr(str + i);
 
 		nlen += ch_len;
 	}
@@ -1298,9 +1311,8 @@ static char *lsp_normalize(const char *str, size_t length)
 			continue;
 		}
 
-		while (lsp_is_sgr_sequence(str + i)) {
-			i += lsp_get_sgr_len(str + i);
-		}
+		/* Ignore possible SGR sequence */
+		i += lsp_skip_sgr(str + i);
 
 		/* Copy the char to normalized string. */
 		memcpy(normalized + nlen, str + i, ch_len);
@@ -3674,8 +3686,7 @@ static void lsp_display_page()
 					size_t l_offset = lindex + ch_len;
 
 					/* Consume SGR sequences if any */
-					while (lsp_is_sgr_sequence(line->raw + l_offset))
-						l_offset += lsp_get_sgr_len(line->raw + l_offset);
+					l_offset += lsp_skip_sgr(line->raw + l_offset);
 
 					/* Read correct next_ch if there was an SGR sequence */
 					if (l_offset != lindex + ch_len)
