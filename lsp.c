@@ -254,7 +254,7 @@ static size_t lsp_get_sgr_len(const char *seq)
 			continue;
 
 		/* Not a SGR sequence. */
-		return -1;
+		return (size_t)-1;
 	}
 
 	return sgr_len + 1;
@@ -537,7 +537,7 @@ static bool lsp_is_sgr_sequence(const char *c)
 	if (*(c + 1) != '[')
 		return false;
 
-	return lsp_get_sgr_len(c) != -1;
+	return lsp_get_sgr_len(c) != (size_t)-1;
 
 }
 
@@ -865,7 +865,7 @@ static int lsp_file_getch()
 	static int once = 0;
 again:
 	if (cf->size != LSP_FSIZE_UNKNOWN &&
-	    (lsp_pos == -1 || lsp_pos == cf->size))
+	    (lsp_pos == (off_t)-1 || lsp_pos == cf->size))
 		return -1; /* EOF */
 
 	lsp_file_align_buffer();
@@ -1043,7 +1043,7 @@ static struct toc_node_t *lsp_pos_to_toc(off_t pos)
 static struct lsp_line_t *lsp_get_this_line() {
 	/* Return NULL if we reached EOF. */
 	if (cf->size != LSP_FSIZE_UNKNOWN &&
-	    (lsp_pos == -1 || lsp_pos == cf->size))
+	    (lsp_pos == (off_t)-1 || lsp_pos == cf->size))
 		return NULL;
 
 	/* Make sure we are at the beginning of the current line */
@@ -1142,7 +1142,7 @@ static struct lsp_line_t *lsp_get_line_from_here()
 
 	/* Return NULL if we reached EOF. */
 	if (cf->size != LSP_FSIZE_UNKNOWN &&
-	    (lsp_pos == -1 || lsp_pos == cf->size))
+	    (lsp_pos == (off_t)-1 || lsp_pos == cf->size))
 		return NULL;
 
 	pos = lsp_pos;
@@ -3197,8 +3197,8 @@ static size_t lsp_line_get_matches(const struct lsp_line_t *line, regmatch_t **p
 	/* Collect all pattern matches in this line */
 	for (i = 0; i < pmatch_len; i++) {
 		size_t offset;
-		(*pmatch)[i].rm_so = -1;
-		(*pmatch)[i].rm_eo = -1;
+		(*pmatch)[i].rm_so = (off_t)-1;
+		(*pmatch)[i].rm_eo = (off_t)-1;
 
 		/* Stop if the end of previous match is at the end of the line.
 		   Needed for searches for e.g. '$'. */
@@ -3505,7 +3505,7 @@ static void lsp_display_page()
 				/* Emphasize found search matches. */
 				size_t i;
 
-				for (i = 0; pmatch[i].rm_so != -1; i++) {
+				for (i = 0; pmatch[i].rm_so != (off_t)-1; i++) {
 					/* Highlight the matches. */
 					if (pmatch[i].rm_so <= lindex &&
 						pmatch[i].rm_eo > lindex) {
