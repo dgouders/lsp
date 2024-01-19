@@ -1237,14 +1237,16 @@ static size_t lsp_normalize_count(const char *str, size_t length)
 	if (!length)
 		return 0;
 
-	if (length > strlen(str))
+	size_t str_len = strlen(str);
+
+	if (length > str_len)
 		lsp_error("%s: length %ld > strlen(str) %ld "
-			  "str: \"%s\"\n", __func__, length, strlen(str), str);
+			  "str: \"%s\"\n", __func__, length, str_len, str);
 
 	/* Process the string ignoring <char>\b sequences and SGR sequences. */
 	for (i = 0, nlen = 0; nlen < length; i += ch_len) {
 		/* Get length of possible multibyte char. */
-		ch_len = lsp_mblen(str + i, length - nlen);
+		ch_len = lsp_mblen(str + i, str_len - i);
 
 		if (str[i + ch_len] == '\b') {
 			/* Ignore this c and the following \b */
