@@ -3541,13 +3541,18 @@ static void lsp_display_page()
 					/* Notice if it was the current match, remember its
 					   coords for positioning the cursor, later. */
 					if (lsp_cm_index == i && pmatch[i].rm_eo <= lindex) {
-							getyx(lsp_win, cf->cmatch_y, cf->cmatch_x);
+						cf->cmatch_y = y;
+						cf->cmatch_x = x;
 
-							lsp_debug("Current match position = %d,%d",
-								  cf->cmatch_y, cf->cmatch_x);
+						lsp_debug("Current match position = %d,%d",
+							  cf->cmatch_y, cf->cmatch_x);
 
-							lsp_cm_index = -1;
+						lsp_cm_index = -1;
 					}
+
+					/* Stop at matches that start right of us. */
+					if (pmatch[i].rm_so > lindex)
+						break;
 				}
 			}
 
