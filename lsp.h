@@ -1,7 +1,7 @@
 /*
  * lsp - list pages (or least significant pager)
  *
- * Copyright (C) 2023, Dirk Gouders
+ * Copyright (C) 2023-2024, Dirk Gouders
  *
  * This file is part of lsp.
  *
@@ -268,7 +268,9 @@ static regmatch_t		lsp_search_find_prev_match(struct lsp_line_t **);
 static regmatch_t		lsp_search_next(void);
 static regmatch_t		lsp_search_toc_next(void);
 static void			lsp_set_no_current_match(void);
+static size_t			lsp_skip_bsp(const char *);
 static size_t			lsp_skip_sgr(const char *);
+static size_t			lsp_skip_to_payload(const char *);
 static char *			lsp_to_lower(char *);
 static struct toc_node_t *	lsp_pos_to_toc(off_t);
 static void			lsp_toc_bw(size_t);

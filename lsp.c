@@ -1,7 +1,7 @@
 /*
  * lsp - list pages (or least significant pager)
  *
- * Copyright (C) 2023, Dirk Gouders
+ * Copyright (C) 2023-2024, Dirk Gouders
  *
  * This file is part of lsp.
  *
@@ -237,6 +237,36 @@ static void lsp_goto_bol()
 {
 	while (lsp_pos > 0 && lsp_file_peek_bw() != '\n')
 		lsp_file_ungetch();
+}
+
+/*
+ * Return length needed to skip control sequences (SGR or backspace) to reach
+ * the next payload character.
+ */
+static size_t lsp_skip_to_payload(const char *str)
+{
+	size_t i = 0;
+
+	i += lsp_skip_sgr(str);
+	i += lsp_skip_bsp(str);
+
+	return i;
+}
+
+/*
+ * Return length needed to skip leading backspace sequence in given string.
+ */
+static size_t lsp_skip_bsp(const char *str)
+{
+	assert(str[0] != '\b');
+
+	/* Get length of possible multibyte char. */
+	size_t i = lsp_mblen(str, strlen(str));
+
+	if (str[i] == '\b')
+		return i + 1;
+
+	return 0;
 }
 
 /*
@@ -1108,21 +1138,10 @@ static void lsp_line_add_screen_lines(struct lsp_line_t *line)
 
 		new_screen_line = 0;
 
-		size_t ch_len;
+		i += lsp_skip_to_payload(line->raw + i);
 
-		while (1) {
-			/* Proceed with next (possibly multibyte) character */
-			ch_len = lsp_mbtowc(NULL, line->raw + i, line->len - i);
-
-			/* Ignore \b sequences */
-			if (line->raw[i + ch_len] == '\b') {
-				/* Ignore this char and the following '\b' */
-				i += ch_len + 1;
-				continue;
-			}
-
-			break;
-		}
+		/* Proceed with next (possibly multibyte) character */
+		size_t ch_len = lsp_mbtowc(NULL, line->raw + i, line->len - i);
 
 		if (line->raw[i] == '\t') {
 			current_len += lsp_expand_tab(current_len);
@@ -1259,18 +1278,11 @@ static size_t lsp_normalize_count(const char *str, size_t length)
 
 	/* Process the string ignoring <char>\b sequences and SGR sequences. */
 	for (i = 0, nlen = 0; nlen < length; i += ch_len) {
-		/* Ignore possible SGR sequence */
-		i += lsp_skip_sgr(str + i);
+		/* Ignore possible control sequences */
+		i += lsp_skip_to_payload(str + i);
 
 		/* Get length of possible multibyte char. */
 		ch_len = lsp_mblen(str + i, str_len - i);
-
-		if (str[i + ch_len] == '\b') {
-			/* Ignore this c and the following \b */
-			i++;
-			continue;
-		}
-
 		nlen += ch_len;
 	}
 
@@ -1302,17 +1314,11 @@ static char *lsp_normalize(const char *str, size_t length)
 
 	/* Copy the string ignoring c\b sequences */
 	for (i = 0, nlen = 0; i < length; i += ch_len) {
-		/* Ignore possible SGR sequence */
-		i += lsp_skip_sgr(str + i);
+		/* Ignore possible control sequences */
+		i += lsp_skip_to_payload(str + i);
 
 		/* Get length of possible multibyte char. */
 		ch_len = lsp_mblen(str + i, length - i);
-
-		if (str[i + ch_len] == '\b') {
-			/* Ignore this c and the following \b */
-			i++;
-			continue;
-		}
 
 		/* Copy the char to normalized string. */
 		memcpy(normalized + nlen, str + i, ch_len);
