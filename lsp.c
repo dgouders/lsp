@@ -2190,51 +2190,27 @@ static regmatch_t lsp_search_toc_next()
 
 		lsp_line_dtor(line);
 
-		line = lsp_get_this_line();
+		line = lsp_get_line_from_here();
 
 		if (!line)
 			break;
 
-		size_t offset = 0;
-
-		/* Adjust start position for search based on the
-		   position we were called with.
-
-		   Translate the position of the raw part to the one
-		   in the normalized where we will do the search! */
-		if (start_pos > line->pos) {
-			/* For now, we go the ugly way:
-			   Normalize the raw string up to the offset
-			   position.  The length of the normalized
-			   string should then be the correct offset for the
-			   normalized string.  Puh... */
-			char *tmp =
-				lsp_normalize(line->raw, start_pos - line->pos);
-			offset = strlen(tmp);
-			lsp_debug("%s: normalized offset for raw %ld: %ld",
-				  __func__, start_pos - line->pos, offset);
-			free(tmp);
-		}
-
 		int eflags = 0;
 
-		if (offset > 0)
+		if (lsp_pos_is_at_bol(line->pos) == false)
 			eflags = REG_NOTBOL;
 
-		ret = regexec(cf->regex_p, line->normalized + offset,
-			      1, pmatch, eflags);
+		ret = regexec(cf->regex_p, line->normalized, 1, pmatch, eflags);
 
 		if (ret == 0) {
 			lsp_debug("%s: regexec match[%u]: \"%s\"",
 				  __func__, pmatch[0].rm_eo - pmatch[0].rm_so,
-				  line->normalized + offset);
+				  line->normalized);
 
 			match.rm_so = line->pos +
-				lsp_normalize_count(line->raw,
-						    offset + pmatch[0].rm_so);
+				lsp_normalize_count(line->raw, pmatch[0].rm_so);
 			match.rm_eo = line->pos +
-				lsp_normalize_count(line->raw,
-						    offset + pmatch[0].rm_eo);
+				lsp_normalize_count(line->raw, pmatch[0].rm_eo);
 
 			lsp_mode_set_highlight();
 			ret_val = match;
@@ -2269,51 +2245,27 @@ static regmatch_t lsp_search_file_next()
 
 		lsp_line_dtor(line);
 
-		line = lsp_get_this_line();
+		line = lsp_get_line_from_here();
 
 		if (!line)
 			break;
 
-		size_t offset = 0;
-
-		/* Adjust start position for search based on the
-		   position we were called with.
-
-		   Translate the position of the raw part to the one
-		   in the normalized where we will do the search! */
-		if (start_pos > line->pos) {
-			/* For now, we go the ugly way:
-			   Normalize the raw string up to the offset
-			   position.  The length of the normalized
-			   string should then be the correct offset for the
-			   normalized string.  Puh... */
-			char *tmp =
-				lsp_normalize(line->raw, start_pos - line->pos);
-			offset = strlen(tmp);
-			lsp_debug("%s: normalized offset for raw %ld: %ld",
-				  __func__, start_pos - line->pos, offset);
-			free(tmp);
-		}
-
 		int eflags = 0;
 
-		if (offset > 0)
+		if (lsp_pos_is_at_bol(line->pos) == false)
 			eflags = REG_NOTBOL;
 
-		ret = regexec(cf->regex_p, line->normalized + offset,
-			      1, pmatch, eflags);
+		ret = regexec(cf->regex_p, line->normalized, 1, pmatch, eflags);
 
 		if (ret == 0) {
 			lsp_debug("%s: regexec match[%u]: \"%s\"",
 				  __func__, pmatch[0].rm_eo - pmatch[0].rm_so,
-				  line->normalized + offset);
+				  line->normalized);
 
 			match.rm_so = line->pos +
-				lsp_normalize_count(line->raw,
-						    offset + pmatch[0].rm_so);
+				lsp_normalize_count(line->raw, pmatch[0].rm_so);
 			match.rm_eo = line->pos +
-				lsp_normalize_count(line->raw,
-						    offset + pmatch[0].rm_eo);
+				lsp_normalize_count(line->raw, pmatch[0].rm_eo);
 
 			lsp_mode_set_highlight();
 			ret_val = match;
@@ -3129,6 +3081,22 @@ static void lsp_search_align_page_to_match()
 		lsp_file_set_pos(cf->lines[match_line - 1]);
 		lsp_file_backward(lsp_maxy / 2);
 	}
+}
+
+/*
+ * Check if given pos is the beginning of a line.
+ */
+static bool lsp_pos_is_at_bol(off_t pos)
+{
+	bool ret;
+	off_t save_pos = lsp_pos;
+
+	lsp_file_set_pos(pos);
+
+	ret = lsp_is_at_bol();
+
+	lsp_file_set_pos(save_pos);
+	return ret;
 }
 
 /*

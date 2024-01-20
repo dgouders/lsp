@@ -252,6 +252,7 @@ static void			lsp_print_file_ring(void);
 #endif
 static void			lsp_process_env_options(void);
 static void			lsp_process_options(int, char **);
+static bool			lsp_pos_is_at_bol(off_t);
 static bool			lsp_pos_is_current_page(off_t);
 static bool			lsp_pos_is_toc(off_t);
 static void			lsp_process_env_open(void);
