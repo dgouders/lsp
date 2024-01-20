@@ -2195,12 +2195,6 @@ static regmatch_t lsp_search_toc_next()
 		if (!line)
 			break;
 
-		/* Remove newline character to enable matches for characters at
-		   end of line. */
-		char *ptr = strchr(line->normalized, '\n');
-		if (ptr)
-			*ptr = '\0';
-
 		size_t offset = 0;
 
 		/* Adjust start position for search based on the
@@ -2279,12 +2273,6 @@ static regmatch_t lsp_search_file_next()
 
 		if (!line)
 			break;
-
-		/* Remove newline character to enable matches for characters at
-		   end of line. */
-		char *ptr = strchr(line->normalized, '\n');
-		if (ptr)
-			*ptr = '\0';
 
 		size_t offset = 0;
 
@@ -2745,7 +2733,7 @@ static char *lsp_search_compile_regex(lsp_mode_t search_mode)
 		} else {
 			lsp_search_regex = lsp_calloc(1, sizeof(regex_t));
 		}
-		int cflags = REG_EXTENDED;
+		int cflags = REG_EXTENDED | REG_NEWLINE;
 		if (!lsp_case_sensitivity)
 			cflags |= REG_ICASE;
 
