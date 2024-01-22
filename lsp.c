@@ -2028,12 +2028,12 @@ static int lsp_init_screen()
 		init_pair(LSP_REVERSE_PAIR, COLOR_WHITE,   COLOR_MAGENTA);
 
 		bkgd(COLOR_PAIR(LSP_DEFAULT_PAIR));
-	}
 
-	/* Make white a bit whiter.  1000 is max. */
-	int ret = init_color(COLOR_WHITE, 909, 909, 909);
-	if (ret == ERR)
-		lsp_error("%s: Could not change color.", __func__);
+		/* Make white a bit whiter.  1000 is max. */
+		int ret = init_color(COLOR_WHITE, 909, 909, 909);
+		if (ret == ERR)
+			lsp_error("%s: Could not change color.", __func__);
+	}
 
 	cbreak();
 	noecho();
