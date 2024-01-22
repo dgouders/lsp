@@ -254,19 +254,27 @@ static size_t lsp_skip_to_payload(const char *str)
 }
 
 /*
- * Return length needed to skip leading backspace sequence in given string.
+ * Return length needed to skip leading backspace sequences in given string.
  */
 static size_t lsp_skip_bsp(const char *str)
 {
-	assert(str[0] != '\b');
+	size_t i = 0;
+	size_t ch_len;
 
-	/* Get length of possible multibyte char. */
-	size_t i = lsp_mblen(str, strlen(str));
+	while (1) {
+		assert(str[i] != '\b');
 
-	if (str[i] == '\b')
-		return i + 1;
+		/* Get length of possible multibyte char. */
+		ch_len = lsp_mblen(str + i, strlen(str + i));
 
-	return 0;
+		if (str[i + ch_len] != '\b')
+			break;
+
+		/* Skip this char and the following \b. */
+		i += ch_len + 1;
+	}
+
+	return i;
 }
 
 /*
