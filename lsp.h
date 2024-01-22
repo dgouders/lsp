@@ -184,6 +184,7 @@ static void			lsp_file_reset(void);
 static void			lsp_file_ring_dtor(void);
 static void			lsp_file_search_next(lsp_mode_t);
 static void			lsp_file_search_prev(lsp_mode_t);
+static void			lsp_file_set_current_match(regmatch_t);
 static void			lsp_file_set_pos(off_t);
 static void			lsp_file_set_prev_line(void);
 static void			lsp_file_toc_add(const struct lsp_line_t *, int);

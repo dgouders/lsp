@@ -2103,11 +2103,11 @@ static regmatch_t lsp_search_find_prev_match(struct lsp_line_t **line)
 		offset = 0;
 
 		/* Find all matches in the line; we need the last one. */
-		while (1) {
-			int eflags = 0;
+		while (offset < (*line)->nlen) {
+			int eflags = REG_NOTEOL;
 
 			if (offset > 0)
-				eflags = REG_NOTBOL;
+				eflags |= REG_NOTBOL;
 
 			ret = regexec(cf->regex_p, (*line)->normalized + offset,
 				      1, pmatch, eflags);
@@ -2123,6 +2123,11 @@ static regmatch_t lsp_search_find_prev_match(struct lsp_line_t **line)
 			match.rm_so = offset + pmatch[0].rm_so;
 			match.rm_eo = offset + pmatch[0].rm_eo;
 			offset += pmatch[0].rm_eo;
+
+			/* Ensure progress for zero-length matches. */
+			if (pmatch[0].rm_so == pmatch[0].rm_eo)
+				offset += lsp_mblen((*line)->normalized + offset,
+						    (*line)->nlen - offset);
 
 			/* Now, calculate match offsets for raw string. */
 			match.rm_so = (*line)->pos +
@@ -2195,10 +2200,10 @@ static regmatch_t lsp_search_toc_next()
 		if (!line)
 			break;
 
-		int eflags = 0;
+		int eflags = REG_NOTEOL;
 
 		if (lsp_pos_is_at_bol(line->pos) == false)
-			eflags = REG_NOTBOL;
+			eflags |= REG_NOTBOL;
 
 		ret = regexec(cf->regex_p, line->normalized, 1, pmatch, eflags);
 
@@ -2250,10 +2255,10 @@ static regmatch_t lsp_search_file_next()
 		if (!line)
 			break;
 
-		int eflags = 0;
+		int eflags = REG_NOTEOL;
 
 		if (lsp_pos_is_at_bol(line->pos) == false)
-			eflags = REG_NOTBOL;
+			eflags |= REG_NOTBOL;
 
 		ret = regexec(cf->regex_p, line->normalized, 1, pmatch, eflags);
 
@@ -2808,6 +2813,41 @@ static bool lsp_is_a_match(regmatch_t match)
 }
 
 /*
+ * Set current_match to the given match and take care for zero-length matches.
+ *
+ * For zero-length matches current_match.rm_eo has to be increased so that
+ * subsequent searches don't stay at the same position.
+ */
+static void lsp_file_set_current_match(regmatch_t match)
+{
+	cf->current_match = match;
+
+	if (match.rm_so < match.rm_eo)
+		return;		/* Ordinary match */
+
+	assert(match.rm_so == match.rm_eo);
+
+	/*
+	 * Zero-length match: advance match.rm_eo by one payload character.
+	 */
+	struct lsp_line_t *line = lsp_get_line_at_pos(match.rm_eo);
+
+	/* match has absolute positions, make them relative to the line. */
+	size_t match_start = match.rm_eo - line->pos;
+
+	/* Get lengths of control plus payload characters. */
+	size_t len = lsp_skip_to_payload(line->raw + match_start);
+	len += lsp_mblen(line->raw + match_start + len,
+			 line->len - (match_start + len));
+
+	cf->current_match.rm_eo += len;
+
+	assert(cf->current_match.rm_so < cf->current_match.rm_eo);
+
+	lsp_line_dtor(line);
+}
+
+/*
  * Search backwards for pattern.
  */
 static void lsp_file_search_prev(lsp_mode_t search_mode)
@@ -2863,7 +2903,7 @@ static void lsp_file_search_prev(lsp_mode_t search_mode)
 		return;
 	}
 
-	cf->current_match = pos;
+	lsp_file_set_current_match(pos);
 
 	lsp_search_align_to_match();
 
@@ -2955,7 +2995,7 @@ static void lsp_file_search_next(lsp_mode_t search_mode)
 	}
 
 	lsp_mode_set(search_mode);
-	cf->current_match = pos;
+	lsp_file_set_current_match(pos);
 
 	lsp_search_align_to_match();
 
@@ -3161,23 +3201,37 @@ static size_t lsp_line_get_matches(const struct lsp_line_t *line, regmatch_t **p
 	size_t i = 0;
 	size_t pmatch_len = 0;
 
+	assert(line->raw[line->len - 1] == '\n');
+
+	/*
+	 * We want to search in lines without newline characters (\n), because
+	 * they bring in the empty string at the beginning of the next line as
+	 * well.  Also, they aren't needed to match the end of the line.
+	 *
+	 * Duplicate the normalized line and remove the final \n.
+	 */
+	char *sstring = strdup(line->normalized);
+	size_t slen = line->nlen - 1;
+
+	sstring[slen] = '\0';
+
 	/* Allocate memory for max possible number of matches and that
-	   should be the number of bytes in the line. */
-	pmatch_len = line->nlen + 1;
+	   should be the number of bytes in the line.
+	   But, matches can be empty strings, thus one more than bytes in the
+	   line.  Plus an end-of-matches marker gives 2. */
+	pmatch_len = slen + 2;
 	*pmatch = lsp_realloc(*pmatch, pmatch_len * sizeof(regmatch_t));
 
-	char *ptr = line->normalized;
+	/* Initialize the end-of-matches marker. */
+	(*pmatch)[pmatch_len - 1] = lsp_no_match;
+
+	char *ptr = sstring;
 
 	/* Collect all pattern matches in this line */
 	for (i = 0; i < pmatch_len; i++) {
 		size_t offset;
 		(*pmatch)[i].rm_so = (off_t)-1;
 		(*pmatch)[i].rm_eo = (off_t)-1;
-
-		/* Stop if the end of previous match is at the end of the line.
-		   Needed for searches for e.g. '$'. */
-		if (i > 0 && (*pmatch)[i - 1].rm_eo == line->len)
-			break;
 
 		int eflags = 0;
 
@@ -3188,8 +3242,12 @@ static size_t lsp_line_get_matches(const struct lsp_line_t *line, regmatch_t **p
 		if (regexec(cf->regex_p, ptr, 1, *pmatch + i, eflags))
 			break;
 
-		offset = ptr - line->normalized;
+		offset = ptr - sstring;
 		ptr += (*pmatch)[i].rm_eo;
+
+		/* Force forward for zero-length matches. */
+		if ((*pmatch)[i].rm_so == (*pmatch)[i].rm_eo)
+			ptr += lsp_mblen(ptr, ptr - sstring);
 
 		/* Rebase match offsets to beginning of line */
 		(*pmatch)[i].rm_so += offset;
@@ -3213,6 +3271,8 @@ static size_t lsp_line_get_matches(const struct lsp_line_t *line, regmatch_t **p
 				i--;
 		}
 	}
+
+	free(sstring);
 	return i;
 }
 
@@ -3482,7 +3542,7 @@ static void lsp_display_page()
 				for (i = 0; pmatch[i].rm_so != (off_t)-1; i++) {
 					/* Highlight the matches. */
 					if (pmatch[i].rm_so <= lindex &&
-						pmatch[i].rm_eo > lindex) {
+						pmatch[i].rm_eo >= lindex) {
 
 						if (pmatch[i].rm_so == lindex) {
 							attr_old = attr;
