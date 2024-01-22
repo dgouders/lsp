@@ -2394,7 +2394,7 @@ static struct gref_t *lsp_gref_search(char *name)
 }
 
 /*
- * Find a global reference or retrun NULL.
+ * Find a global reference or return NULL.
  */
 static struct gref_t *lsp_gref_find(char *name)
 {

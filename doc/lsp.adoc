@@ -42,8 +42,8 @@ text -- no *more*(1), no *less*(1).
 The given files are opened if file names are given as options.
 Otherwise *lsp* assumes input from stdin and tries to read from there.
 
-In addition to it's ability to aid in paging through text files *lsp*
-has limited knowledge about manual pages and offers some help in
+In addition to its ability to aid in paging through text files *lsp*
+has some knowledge about manual pages and offers some help in
 viewing them:
 
 * Manual pages usually refer to other manual pages and *lsp* allows to
@@ -149,10 +149,13 @@ This option can speed up verification of references significantly but
  as the system's manual page index is. +
  With this option, the first usage of _TAB_ or _Shift-TAB_ will load
  the pseudo-file _Apropos_ and create valid references for each of
- it's entries; all following reference actions will then be much
+ its entries; all following reference actions will then be much
  faster (approx. O(1)).
 
 == Commands
+
+*< / >*::
+Move to first / last page respectively.
 
 *Pg-Down / Pg-Up*::
 

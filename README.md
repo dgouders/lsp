@@ -1,4 +1,3 @@
-```
 LSP(1)                           User commands                          LSP(1)
 
 NAME
@@ -18,9 +17,8 @@ DESCRIPTION
        The given files are opened if file names are given as options.
        Otherwise lsp assumes input from stdin and tries to read from there.
 
-       In addition to it’s ability to aid in paging through text files lsp has
-       limited knowledge about manual pages and offers some help in viewing
-       them:
+       In addition to its ability to aid in paging through text files lsp has
+       some knowledge about manual pages and offers some help in viewing them:
 
        •   Manual pages usually refer to other manual pages and lsp allows to
            navigate those references and to visit them as new files with the
@@ -134,11 +132,14 @@ OPTIONS
            reliable as the system’s manual page index is.
 
            With this option, the first usage of TAB or Shift-TAB will load the
-           pseudo-file Apropos and create valid references for each of it’s
+           pseudo-file Apropos and create valid references for each of its
            entries; all following reference actions will then be much faster
            (approx. O(1)).
 
 COMMANDS
+       < / >
+           Move to first / last page respectively.
+
        Pg-Down / Pg-Up
            Forward/backward one page, respectively.
 
@@ -231,5 +232,4 @@ SEE ALSO
 BUGS
        Report bugs at https://github.com/dgouders/lsp
 
-0.3.0-2023-11-08                  11/08/2023                            LSP(1)
-```
+0.4.0                             01/22/2024                            LSP(1)
