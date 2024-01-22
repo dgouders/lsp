@@ -1,3 +1,4 @@
+```
 LSP(1)                           User commands                          LSP(1)
 
 NAME
@@ -233,3 +234,4 @@ BUGS
        Report bugs at https://github.com/dgouders/lsp
 
 0.4.0                             01/22/2024                            LSP(1)
+```
