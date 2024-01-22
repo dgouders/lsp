@@ -1407,7 +1407,20 @@ static ssize_t lsp_file_add_line(const char *line)
  */
 static size_t lsp_buffer_free_size()
 {
-	return (cf->data == NULL ? 0 : cf->blksize - (cf->seek - cf->data->seek));
+	if (cf->data == NULL)
+		return 0;
+
+	/* Move to last data buffer we have so far -- this is the one that may
+	 * not have been filled up.
+	 * Also, the calculation below only works with the correct (last) data
+	 * buffer at hand.
+	 */
+	while (cf->data->seek < cf->data->next->seek) {
+		cf->data = cf->data->next;
+		cf->unaligned = 1;
+	}
+
+	return (cf->blksize - (cf->seek - cf->data->seek));
 }
 
 /*
