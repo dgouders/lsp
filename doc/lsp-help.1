@@ -18,6 +18,10 @@
 .\" lsp. If not, see <https://www.gnu.org/licenses/>.
 .\"
 .TH lsp-help 1 01/22/2024 0.4.0 "lsp online help"
+.if \n(.g \{\
+.  \" Work around Savannah #65189.
+.  if n .do if \n[cR] .do if ((\n[.x] = 1) & (\n[.y] < 24)) .pl 99999v
+.\}
 .SH General Information
 \fBlsp\fR lists file content in pages; the content can come from files on
 disk and from standard input, e.g. manual pages.
