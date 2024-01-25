@@ -226,7 +226,7 @@ static size_t			lsp_line_get_matches(const struct lsp_line_t *, regmatch_t **);
 static void			lsp_lines_add(off_t);
 static void *			lsp_malloc(size_t);
 static char *			lsp_man_get_section(off_t);
-static void			lsp_man_goto_section(char *);
+static int			lsp_man_goto_section(char *);
 static void			lsp_man_reposition(char *);
 static uint			lsp_mblen(const char *, size_t);
 static size_t			lsp_mbtowc(wchar_t *, const char *, size_t);

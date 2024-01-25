@@ -2091,7 +2091,8 @@ static void lsp_print_file_ring()
  */
 static void lsp_file_set_pos(off_t pos)
 {
-	lsp_pos = pos;
+	/* Don't exceed cf->seek when changing file positions. */
+	lsp_pos = pos > cf->seek ? cf->seek : pos;
 
 	/* Only existing buffers can be unaligned. */
 	if (cf->data != NULL)
@@ -4437,8 +4438,13 @@ static char *lsp_man_get_section(off_t pos)
  *
  * Because the top of manual pages also start at column 0, we consider them
  * sections with the special name "_start_of_manual_page_".
+ *
+ * We experienced situations where resizes reveal groff(1) problems, that brakes
+ * a section name causing us to not being able to find it.
+ *
+ * Handle such problems by returning -1.
  */
-static void lsp_man_goto_section(char *section)
+static int lsp_man_goto_section(char *section)
 {
 	bool proceed = true;
 	struct lsp_line_t *line;
@@ -4446,16 +4452,25 @@ static void lsp_man_goto_section(char *section)
 	lsp_file_set_pos(0);
 
 	if (LSP_STR_EQ(section, "_start_of_manual_page_"))
-		return;
+		return 0;
 
 	while (proceed) {
 		line = lsp_get_this_line();
+
+		if (line == NULL) {
+			/* For some reason, the section cannot be found. */
+			lsp_debug("%s: section \"%.*s\" disappeared -- falling back to naive heuristics.",
+				  __func__, strlen(section) - 1, section);
+			return -1;
+		}
 
 		if (LSP_STR_EQ(line->normalized, section))
 			proceed = false;
 
 		lsp_line_dtor(line);
 	}
+
+	return 0;
 }
 
 static void lsp_file_forward_empty_lines(size_t nlines)
@@ -4529,11 +4544,17 @@ static void lsp_file_forward_words(size_t nwords)
  */
 static void lsp_man_reposition(char *section)
 {
-	lsp_man_goto_section(section);
-
-	lsp_file_forward_empty_lines(lsp_reposition.elines);
-
-	lsp_file_forward_words(lsp_reposition.words);
+	if (lsp_man_goto_section(section)) {
+		/* Section not found.
+		 * Use old behavior: use previous page_first and reposition to
+		 * BOL.
+		 */
+		lsp_file_set_pos(cf->page_first);
+		lsp_goto_bol();
+	} else {
+		lsp_file_forward_empty_lines(lsp_reposition.elines);
+		lsp_file_forward_words(lsp_reposition.words);
+	}
 }
 
 static void lsp_file_reload()
