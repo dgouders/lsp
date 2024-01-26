@@ -62,6 +62,11 @@ struct toc_node_t {
 };
 
 /*
+ * A macro for converting current positions in a line to an index.
+ */
+#define lindex (line->current - line->raw)
+
+/*
  * Structure for line operations.
  * The member normalized is for a string without formatting information,
  * i.e. backspace and SGR sequences.
@@ -75,6 +80,13 @@ struct lsp_line_t {
 
 	size_t len;		/* length of raw */
 	char *raw;		/* raw line content */
+	char *current;		/* current-position ptr to inside raw used when
+				 * processing a line.
+				 * Having this ptr in the structure enables us
+				 * to call functions with lines we work on.
+				 * Thus helps us getting cleaner code --
+				 * hopefully...
+				 */
 
 	size_t nlen;		/* length of normalized */
 	char *normalized;	/* normalized content */

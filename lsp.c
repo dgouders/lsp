@@ -959,6 +959,7 @@ static struct lsp_line_t *lsp_line_ctor()
 	line->pos = line->len = line->nlen = 0;
 
 	line->raw = NULL;
+	line->current = NULL;
 	line->normalized = NULL;
 
 	line->n_scr_line = 1;
@@ -1248,6 +1249,7 @@ static struct lsp_line_t *lsp_get_line_from_here()
 
 	line->len = pos;
 	line->raw = str;
+	line->current = line->raw;
 	line->normalized = lsp_normalize(str, pos);
 	line->nlen = strlen(line->normalized);
 
@@ -3404,24 +3406,24 @@ static int lsp_line_handle_leading_sgr(attr_t *attr, short *pair)
 	/* Terminate line where the tail starts. */
 	line->raw[old_pos - line->pos] = '\0';
 
-	size_t lindex = 0;
+	size_t li = 0;
 
-	while (line->raw[lindex]) {
-		while (lsp_is_sgr_sequence(line->raw + lindex)) {
+	while (line->raw[li]) {
+		while (lsp_is_sgr_sequence(line->raw + li)) {
 			size_t l;
 			/* Get attributes according to SGR sequence. */
-			l = lsp_decode_sgr(line->raw + lindex, attr, pair);
+			l = lsp_decode_sgr(line->raw + li, attr, pair);
 
 			/* Only use correct SGR sequences. */
 			if (l != (size_t)-1) {
 				if (l > 1)
 					ret_val = 1;
-				lindex += l;
+				li += l;
 			} else
 				break;
 		}
 		/* Skip next possible multibyte sequence in the line. */
-		lindex += lsp_mbtowc(NULL, line->raw + lindex, strlen(line->raw) - lindex);
+		li += lsp_mbtowc(NULL, line->raw + li, strlen(line->raw) - li);
 	}
 
 	lsp_line_dtor(line);
@@ -3485,8 +3487,6 @@ static void lsp_display_page()
 	 * Process lines until EOF or the screen is filled.
 	 */
 	while ((y < (lsp_maxy - 1))) {
-		size_t lindex = 0;
-
 		attr = A_NORMAL;
 		pair = LSP_DEFAULT_PAIR;
 
@@ -3536,11 +3536,11 @@ static void lsp_display_page()
 				top_line = line->pos;
 
 			/* Convert tabs to spaces. */
-			if (line->raw[lindex] == '\t')
+			if (line->current[0] == '\t')
 				tab_spaces = lsp_expand_tab(line_x);
 
 			/* Convert next wide character */
-			ch_len = lsp_mbtowc(ch, line->raw + lindex, line->len - lindex);
+			ch_len = lsp_mbtowc(ch, line->current, line->len - lindex);
 
 			/* Also get its following two characters */
 			if (lindex + ch_len == line->len) {
@@ -3548,10 +3548,8 @@ static void lsp_display_page()
 				next_ch = L'\n';
 			} else {
 				size_t l;
-				l = lsp_mbtowc(&next_ch, line->raw + lindex + ch_len,
-					       line->len - (lindex + ch_len));
-				lsp_mbtowc(&next_ch2, line->raw + lindex + ch_len + l,
-						line->len - (lindex + ch_len));
+				l = lsp_mbtowc(&next_ch, line->current + ch_len, line->len - (lindex + ch_len));
+				lsp_mbtowc(&next_ch2, line->current + ch_len + l, line->len - (lindex + ch_len + l));
 			}
 
 			/* Highlight matches */
@@ -3622,16 +3620,16 @@ static void lsp_display_page()
 						pair = LSP_BOLD_PAIR;
 					}
 				}
-				lindex += ch_len + 1;
+				line->current += ch_len + 1;
 
 				/* Convert tabs to spaces. */
-				if (line->raw[lindex] == '\t')
+				if (line->current[0] == '\t')
 					tab_spaces = lsp_expand_tab(line_x);
 
-				ch_len = lsp_mbtowc(ch, line->raw + lindex, line->len - lindex);
-				lsp_mbtowc(&next_ch, line->raw + lindex + ch_len, line->len - (lindex + ch_len));
+				ch_len = lsp_mbtowc(ch, line->current, line->len - lindex);
+				lsp_mbtowc(&next_ch, line->current + ch_len, line->len - (lindex + ch_len));
 			} else {
-				while (lsp_is_sgr_sequence(line->raw + lindex)) {
+				while (lsp_is_sgr_sequence(line->current)) {
 					size_t l;
 					/* Get attributes according to SGR
 					 * sequence.  We could be inside a
@@ -3639,24 +3637,24 @@ static void lsp_display_page()
 					 * need to set attribute/color for the
 					 * part after the match. */
 					if (match_active)
-						l = lsp_decode_sgr(line->raw + lindex, &attr_old, &pair_old);
+						l = lsp_decode_sgr(line->current, &attr_old, &pair_old);
 					else
-						l = lsp_decode_sgr(line->raw + lindex, &attr, &pair);
+						l = lsp_decode_sgr(line->current, &attr, &pair);
 
 					/* Only use correct SGR sequences. */
 					if (l != (size_t)-1) {
 						if (l > 1)
 							sgr_active = 1;
-						lindex += l;
+						line->current += l;
 						if (lindex >= line->len)
 							goto line_done;
 
 						/* Convert tabs to spaces. */
-						if (line->raw[lindex] == '\t')
+						if (line->current[0] == '\t')
 							tab_spaces = lsp_expand_tab(line_x);
 
 						/* Convert next wide character */
-						ch_len = lsp_mbtowc(ch, line->raw + lindex, line->len - lindex);
+						ch_len = lsp_mbtowc(ch, line->current, line->len - lindex);
 						/* No fetch of next_ch, because that would only be meaningful,
 						   if we supported a mixture of backspace and SGR sequences.
 						   We don't. */
@@ -3752,14 +3750,14 @@ static void lsp_display_page()
 			/* Stay at position in line, if we are currently
 			   processing the expansion of a TAB character. */
 			if (tab_spaces) {
-				assert(line->raw[lindex] == '\t');
+				assert(line->current[0] == '\t');
 
 				/* Advance in line if we are done with
 				   expansion. */
 				if (--tab_spaces == 0)
-					lindex++;
+					line->current++;
 			} else
-				lindex += ch_len;
+				line->current += ch_len;
 		}
 line_done:
 		free(pmatch);
