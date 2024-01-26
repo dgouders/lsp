@@ -3611,15 +3611,25 @@ static void lsp_display_page()
 				}
 			}
 
-			/* Handle control characters to emphasize parts of the
-			   text. */
-			if (next_ch == L'\b') {
-				if (attr == A_NORMAL) {
+			/* Handle control characters to emphasize parts of the text. */
+			attr_t attr_orig = attr;
+			while (next_ch == L'\b') {
+				/*
+				 * According to grotty(1) there are three
+				 * possible backspace sequences:
+				 *
+				 * c \b c	=> bold c
+				 * _ \b c	=> italics c
+				 * _ \b c \b c	=> bold italics c
+				 */
+				size_t l;
+
+				if (attr_orig == A_NORMAL) {
 					if (ch[0] == L'_' && next_ch2 != L'_') {
 						attr = A_UNDERLINE;
 						pair = LSP_UL_PAIR;
 					} else {
-						attr = A_BOLD;
+						attr |= A_BOLD;
 						pair = LSP_BOLD_PAIR;
 					}
 				}
@@ -3630,39 +3640,41 @@ static void lsp_display_page()
 					tab_spaces = lsp_expand_tab(line_x);
 
 				ch_len = lsp_mbtowc(ch, line->current, line->len - lindex);
-				lsp_mbtowc(&next_ch, line->current + ch_len, line->len - (lindex + ch_len));
-			} else {
-				while (lsp_is_sgr_sequence(line->current)) {
-					size_t l;
-					/* Get attributes according to SGR
-					 * sequence.  We could be inside a
-					 * search match and in this case we
-					 * need to set attribute/color for the
-					 * part after the match. */
-					if (match_active)
-						l = lsp_decode_sgr(line->current, &attr_old, &pair_old);
-					else
-						l = lsp_decode_sgr(line->current, &attr, &pair);
+				l = lsp_mbtowc(&next_ch, line->current + ch_len, line->len - (lindex + ch_len));
+				lsp_mbtowc(&next_ch2, line->current + ch_len + l, line->len - (lindex + ch_len + l));
+			}
 
-					/* Only use correct SGR sequences. */
-					if (l != (size_t)-1) {
-						if (l > 1)
-							sgr_active = 1;
-						line->current += l;
-						if (lindex >= line->len)
-							goto line_done;
+			while (lsp_is_sgr_sequence(line->current)) {
+				size_t l;
+				/* Get attributes according to SGR
+				 * sequence.  We could be inside a
+				 * search match and in this case we
+				 * need to set attribute/color for the
+				 * part after the match. */
+				if (match_active)
+					l = lsp_decode_sgr(line->current, &attr_old, &pair_old);
+				else
+					l = lsp_decode_sgr(line->current, &attr, &pair);
 
-						/* Convert tabs to spaces. */
-						if (line->current[0] == '\t')
-							tab_spaces = lsp_expand_tab(line_x);
+				/* Only use correct SGR sequences. */
+				if (l == (size_t)-1)
+					break;
+				else {
+					if (l > 1)
+						sgr_active = 1;
+					line->current += l;
+					if (lindex >= line->len)
+						goto line_done;
 
-						/* Convert next wide character */
-						ch_len = lsp_mbtowc(ch, line->current, line->len - lindex);
-						/* No fetch of next_ch, because that would only be meaningful,
-						   if we supported a mixture of backspace and SGR sequences.
-						   We don't. */
-					} else
-						break;
+					/* Convert tabs to spaces. */
+					if (line->current[0] == '\t')
+						tab_spaces = lsp_expand_tab(line_x);
+
+					/* Convert next wide character */
+					ch_len = lsp_mbtowc(ch, line->current, line->len - lindex);
+					/* No fetch of next_ch, because that would only be meaningful,
+					   if we supported a mixture of backspace and SGR sequences.
+					   We don't. */
 				}
 			}
 
