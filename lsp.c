@@ -1612,8 +1612,6 @@ static int lsp_error(const char *format, ...)
 {
 	va_list ap;
 
-	endwin();
-
 	va_start(ap, format);
 #if DEBUG
 	if (lsp_logfp) {
