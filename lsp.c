@@ -3225,6 +3225,10 @@ static size_t lsp_line_get_matches(const struct lsp_line_t *line, regmatch_t **p
 
 	assert(line->raw[line->len - 1] == '\n');
 
+	/* There are no matches if we aren't searching. */
+	if (lsp_mode_is_highlight() == false)
+		return 0;
+
 	/*
 	 * We want to search in lines without newline characters (\n), because
 	 * they bring in the empty string at the beginning of the next line as
@@ -3514,9 +3518,8 @@ static void lsp_display_page()
 			getyx(lsp_win, y, x);
 		}
 
-		/* If we are searching: find matches in current line */
-		if (lsp_mode_is_highlight())
-			match_index = lsp_line_get_matches(line, &pmatch);
+		/* Find search matches in current line */
+		match_index = lsp_line_get_matches(line, &pmatch);
 
 		/*
 		 * We record a separate x position inside the current line.
@@ -3553,7 +3556,7 @@ static void lsp_display_page()
 			}
 
 			/* Highlight matches */
-			if (match_index && lsp_mode_is_highlight()) {
+			if (match_index) {
 				/* Emphasize found search matches. */
 				size_t i;
 
