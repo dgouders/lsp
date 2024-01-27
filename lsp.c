@@ -1676,6 +1676,7 @@ static int lsp_error(const char *format, ...)
 		va_list apd;
 		va_copy(apd, ap);
 		vfprintf(lsp_logfp, format, apd);
+		fprintf(lsp_logfp, "\n");
 		va_end(apd);
 	}
 #endif
