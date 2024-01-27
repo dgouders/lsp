@@ -136,7 +136,7 @@ static void *lsp_realloc(void *ptr, size_t size)
  * "xxx(n)      some text       xxx(n)"
  *
  */
-static char *lsp_detect_manpage()
+static char *lsp_detect_manpage(bool use_env)
 {
 	char *regex_mid = " {2,}.+ {2,}";
 	char *ref_regex = lsp_search_ref_string;
@@ -146,12 +146,14 @@ static char *lsp_detect_manpage()
 	regmatch_t pmatch[1];
 	struct lsp_line_t *line = NULL;
 
-	/* Check for MAN_PN */
-	name = getenv("MAN_PN");
+	if (use_env) {
+		/* Check for MAN_PN */
+		name = getenv("MAN_PN");
 
-	if (name != NULL) {
-		lsp_debug("%s: found MAN_PN=\"%s\"", __func__, name);
-		return strdup(name);
+		if (name != NULL) {
+			lsp_debug("%s: found MAN_PN=\"%s\"", __func__, name);
+			return strdup(name);
+		}
 	}
 
 	line = lsp_get_line_at_pos(0);
@@ -1382,6 +1384,32 @@ static void lsp_file_close()
 	}
 }
 
+static blksize_t lsp_set_fd_blksize()
+{
+	struct stat statbuf;
+
+	fstat(cf->fd, &statbuf);
+
+	cf->blksize = statbuf.st_blksize;
+	// fixme: perhaps, use pagesize, here.
+	//cf->blksize = 1024;
+}
+
+/*
+ * Inject the given line as the initial data of the current file.
+ *
+ * This is to handle cases where lsp_read_manpage_name() doesn't find the
+ * heading line with the name of the manual page.
+ */
+static void lsp_file_inject_line(const char *line)
+{
+	lsp_file_add_line(line);
+
+	cf->size = LSP_FSIZE_UNKNOWN;
+	lsp_set_fd_blksize();
+	cf->data->buffer = lsp_realloc(cf->data->buffer, cf->blksize);
+}
+
 /*
  * Add a line of text to a file.
  *
@@ -1820,7 +1848,7 @@ static void lsp_file_init_stdin()
 
 	lsp_file_add_block();
 
-	char *name = lsp_detect_manpage();
+	char *name = lsp_detect_manpage(true);
 	if (name == NULL)
 		return;
 
@@ -4273,14 +4301,20 @@ static char *lsp_read_manpage_name()
 	/* Line is complete.  Extract the manpage name. */
 	start = strchr(name, '>');
 
-	if (start == NULL)
-		lsp_error("%s: didn't find end of starting <lsp_man_pn>", __func__);
+	if (start == NULL) {
+		lsp_debug("%s: didn't find end of starting <lsp_man_pn>", __func__);
+		lsp_file_inject_line(name);
+		return NULL;
+	}
 
 	start += 1;			/* Go next to <lsp-man-pn> */
 	end = strchr(start, '<');
 
-	if (end == NULL)
-		lsp_error("%s: didn't find start of final </lsp_man_pn>", __func__);
+	if (end == NULL) {
+		lsp_debug("%s: didn't find start of final </lsp_man_pn>", __func__);
+		lsp_file_inject_line(name);
+		return NULL;
+	}
 
 	*end = '\0';			/* Cut off </lsp-man-pn> */
 
@@ -4323,13 +4357,7 @@ static void lsp_exec_man()
 	/* parent process */
 	cf->size = LSP_FSIZE_UNKNOWN;
 
-	struct stat statbuf;
-
-	fstat(ptmxfd, &statbuf);
-
-	cf->blksize = statbuf.st_blksize;
-	// fixme: perhaps, use pagesize, here.
-	//cf->blksize = 1024;
+	lsp_set_fd_blksize();
 
 	/* Try to find a manpage name heading its content. */
 	char *name = lsp_read_manpage_name();
@@ -4358,7 +4386,7 @@ static void lsp_exec_man()
 	}
 
 	if (name == NULL)
-		name = lsp_detect_manpage();
+		name = lsp_detect_manpage(false);
 
 	if (name == NULL || LSP_STR_EQ(cf->name, name)) {
 		free(name);
