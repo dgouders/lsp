@@ -252,6 +252,9 @@ All command line options can also be specified using this variable.
 Analogical to *less*(1), *lsp* supports an input preprocessor but currently just the two basic forms: +
 One that provides the path to a replacement file and the one that writes the content to be paged to a pipe.
 
+*MAN_PN*::
+*lsp* expects *man*(1) to provide *MAN_PN* with the name of the manual page at hand.
+
 == See also
 
 *apropos*(1), *less*(1), *man*(1), *mandb*(8), *mkstemp*(3), *more*(1), *pg*(1)

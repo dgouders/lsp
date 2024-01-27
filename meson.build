@@ -18,4 +18,10 @@ executable(
         install : true
 )
 
+install_data(
+        'lsp_cat',
+        install_dir: 'bin',
+        install_mode: 'rwxr-xr-x'
+)
+
 subdir('doc')

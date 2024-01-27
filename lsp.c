@@ -125,6 +125,11 @@ static void *lsp_realloc(void *ptr, size_t size)
  * Try to detect if file_t is a manual page.
  * Return a string xyz(n) if so, NULL otherwise.
  *
+ * We start by checking if we find an environment variable MAN_PN that gives us
+ * the name of the manual page.
+ *
+ * If that fails, we are falling back to our prior behavior:
+ *
  * We are testing the first line of the current file
  * for a pattern like:
  *
@@ -136,9 +141,18 @@ static char *lsp_detect_manpage()
 	char *regex_mid = " {2,}.+ {2,}";
 	char *ref_regex = lsp_search_ref_string;
 	char *regex_str;
+	char *name;
 	regex_t preg;
 	regmatch_t pmatch[1];
 	struct lsp_line_t *line = NULL;
+
+	/* Check for MAN_PN */
+	name = getenv("MAN_PN");
+
+	if (name != NULL) {
+		lsp_debug("%s: found MAN_PN=\"%s\"", __func__, name);
+		return strdup(name);
+	}
 
 	line = lsp_get_line_at_pos(0);
 	if (!line)
@@ -166,7 +180,7 @@ static char *lsp_detect_manpage()
 		return NULL;
 	}
 
-	char *name = strchr(line->normalized, ')');
+	name = strchr(line->normalized, ')');
 	size_t len = name + 1 - line->normalized;
 	line->normalized[len] = '\0';
 
@@ -1450,6 +1464,36 @@ static void lsp_file_data_ctor(size_t size_to_read)
 }
 
 /*
+ * Perform an actual read(2) with error handling.
+ */
+static ssize_t lsp_file_do_read(char *buffer_p, size_t size_to_read)
+{
+	ssize_t nread = read(cf->fd, buffer_p, size_to_read);
+
+	if (nread == -1) {
+		lsp_debug("%s: input file %s: %s",
+			  __func__, cf->name, strerror(errno));
+
+		/* When we read from ptmxfd given by forktty()
+		   we get EIO at the end of data.
+		   So, simulate normal EOF by setting nread = 0. */
+		if (errno == EIO)
+			nread = 0;
+		return nread;
+	}
+
+	/* Duplicate input to file given with -o */
+	if (lsp_ofile > 0)
+		write(lsp_ofile, buffer_p, nread);
+
+	if (nread < size_to_read)
+		lsp_debug("%s, pos %ld: read %ld bytes instead of %ld.",
+			  __func__, cf->seek, nread, size_to_read);
+
+	return nread;
+}
+
+/*
  * Add a block of data to the current file
  */
 static ssize_t lsp_file_read_block(size_t size_to_read)
@@ -1479,28 +1523,12 @@ static ssize_t lsp_file_read_block(size_t size_to_read)
 		nread = 1;
 	}
 
-	nread += read(cf->fd, buffer_p, size_to_read);
+	ssize_t ret = lsp_file_do_read(buffer_p, size_to_read);
 
-	if (nread == -1) {
-		lsp_debug("%s: input file %s: %s",
-			  __func__, cf->name, strerror(errno));
+	if (ret == -1)
+		return -1;
 
-		/* When we read from ptmxfd given by forktty()
-		   we get EIO at the end of data.
-		   So, simulate normal EOF by setting nread = 0. */
-		if (errno == EIO)
-			nread = 0;
-		else
-			return -1;
-	}
-
-	/* Duplicate input to file given with -o */
-	if (lsp_ofile > 0)
-		write(lsp_ofile, buffer_p, nread);
-
-	if (nread < size_to_read)
-		lsp_debug("%s, pos %ld: read %ld bytes instead of %ld.",
-			  __func__, cf->seek, nread, size_to_read);
+	nread += ret;
 
 	cf->seek += nread;
 
@@ -4188,6 +4216,81 @@ char** lsp_create_argv(char *format, char *str)
 	return argv;
 }
 
+/*
+ * At least man-db's man(1) sets MAN_PN to the name of the manual page and we
+ * could use it as our file name -- but this variable is set in the
+ * context of the child process and I don't know a way to get another processes
+ * environment variable.
+ *
+ * So, we use this hack to come to know the child's MAN_PN:
+ *
+ * - We execute the man(1) command with a script lsp_cat set as PAGER.
+ * - lsp_cat(1) outputs a line containing the value of the environment variable
+ *   MAN_PN, e.g.
+ *
+ *   <lsp-man_pn>fdopen(3)</lsp-man_pn>
+ *
+ *   heading the real content of the manual page.
+ *
+ * We read one line from the current fd to extract this embedded information
+ * from the real manual page.
+ *
+ * Return the found name or NULL on failure.
+ * The caller has to free() the name.
+ *
+ * fixme: currently, we don't return NULL or handle all possible errors.
+ *        We should detect if there is no such heading line.  We must then copy
+ *        the read data to cf->data, because it obviously was manpage content.
+ *        And, we should know how to proceed if our hack failed...
+ */
+static char *lsp_read_manpage_name()
+{
+	/* The heading line shouldn't exceed 256 byte -- famous last words. */
+	char name[256];
+	char *start;
+	char *end;
+	char *ret;
+
+	int i = 0;
+	ssize_t len;
+	char c = 0;
+
+	/* Read single bytes until we get a linefeed. */
+	while (c != '\n') {
+		if (i == 256)
+			lsp_error("%s: too long heading line...", __func__);
+
+		len = lsp_file_do_read(&c, 1);
+
+		if (len == 1) {
+			name[i++] = c;
+			continue;
+		}
+	}
+
+	name[i] = '\0';
+
+	/* Line is complete.  Extract the manpage name. */
+	start = strchr(name, '>');
+
+	if (start == NULL)
+		lsp_error("%s: didn't find end of starting <lsp_man_pn>", __func__);
+
+	start += 1;			/* Go next to <lsp-man-pn> */
+	end = strchr(start, '<');
+
+	if (end == NULL)
+		lsp_error("%s: didn't find start of final </lsp_man_pn>", __func__);
+
+	*end = '\0';			/* Cut off </lsp-man-pn> */
+
+	ret = strdup(start);
+
+	lsp_debug("%s: found MAN_PN = \"%s\"", __func__, ret);
+
+	return ret;
+}
+
 static void lsp_exec_man()
 {
 	/*
@@ -4207,7 +4310,7 @@ static void lsp_exec_man()
 		lsp_error("%s", strerror(errno));
 
 	if (pid == 0) {		/* child process */
-		putenv("PAGER=cat");
+		putenv("PAGER=lsp_cat");
 
 		char **e_argv = lsp_create_argv(lsp_reload_command, cf->name);
 
@@ -4227,6 +4330,9 @@ static void lsp_exec_man()
 	cf->blksize = statbuf.st_blksize;
 	// fixme: perhaps, use pagesize, here.
 	//cf->blksize = 1024;
+
+	/* Try to find a manpage name heading its content. */
+	char *name = lsp_read_manpage_name();
 
 	lsp_file_read_all();
 
@@ -4251,10 +4357,9 @@ static void lsp_exec_man()
 			  __func__, (intmax_t)ret_pid, (intmax_t)pid);
 	}
 
-	/*
-	 * Set file name to correct name of manual page.
-	 */
-	char *name = lsp_detect_manpage();
+	if (name == NULL)
+		name = lsp_detect_manpage();
+
 	if (name == NULL || LSP_STR_EQ(cf->name, name)) {
 		free(name);
 		return;
