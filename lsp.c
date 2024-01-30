@@ -1674,6 +1674,10 @@ static int lsp_error(const char *format, ...)
 {
 	va_list ap;
 
+	/* Check if curses has been initialized and do cleanup */
+	if (isendwin() == FALSE)
+		endwin();
+
 	va_start(ap, format);
 #if DEBUG
 	if (lsp_logfp) {
@@ -1687,10 +1691,6 @@ static int lsp_error(const char *format, ...)
 	vfprintf(stderr, format, ap);
 	fprintf(stderr, "\n");
 	va_end(ap);
-
-	/* Check if curses has been initialized and do cleanup */
-	if (isendwin() == FALSE)
-		endwin();
 
 	lsp_file_ring_dtor();
 
