@@ -278,7 +278,15 @@ static size_t lsp_skip_bsp(const char *str)
 	size_t ch_len;
 
 	while (1) {
-		assert(str[i] != '\b');
+		if (str[i] == '\b') {
+			/*
+			 * The next char is a \b, i.e. this is not a
+			 * backspace sequence we are interested in.
+			 * Return zero to consider any backspace in the string
+			 * uninteresting.
+			 */
+			return 0;
+		}
 
 		/* Get length of possible multibyte char. */
 		ch_len = lsp_mblen(str + i, strlen(str + i));
@@ -3700,9 +3708,16 @@ static void lsp_display_page()
 				}
 			}
 
-			/* Handle control characters to emphasize parts of the text. */
+			/*
+			 * Handle control characters to emphasize parts of the
+			 * text.
+			 *
+			 * Try to leave backspace sequences untouched that are
+			 * not grotty's legacy output: if we hit a backspace
+			 * with ch then it is definitely no such thing.
+			 */
 			attr_t attr_orig = attr;
-			while (next_ch == L'\b') {
+			while (ch[0] != L'\b' && next_ch == L'\b') {
 				/*
 				 * According to grotty(1) there are three
 				 * possible backspace sequences:
@@ -3717,7 +3732,7 @@ static void lsp_display_page()
 					if (ch[0] == L'_' && next_ch2 != L'_') {
 						attr = A_UNDERLINE;
 						pair = LSP_UL_PAIR;
-					} else {
+					} else if (ch[0] == next_ch2) {
 						attr |= A_BOLD;
 						pair = LSP_BOLD_PAIR;
 					}
