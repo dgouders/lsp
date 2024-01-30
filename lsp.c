@@ -3320,8 +3320,6 @@ static size_t lsp_line_get_matches(const struct lsp_line_t *line, regmatch_t **p
 	size_t i = 0;
 	size_t pmatch_len = 0;
 
-	assert(line->raw[line->len - 1] == '\n');
-
 	/* There are no matches if we aren't searching. */
 	if (lsp_mode_is_highlight() == false)
 		return 0;
