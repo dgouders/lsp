@@ -30,6 +30,9 @@
 #define LSP_STR_EQ(a, b) (strcmp(a, b) == 0)
 #define LSP_STR_NEQ(a, b) (strcmp(a, b) != 0)
 
+#define LSP_STRN_EQ(a, b, l) (strncmp(a, b, l) == 0)
+#define LSP_STRN_NEQ(a, b, l) (strncmp(a, b, l) != 0)
+
 /*
  * We store each file's content in a ring of buffers of size blksize.
  */
@@ -197,9 +200,11 @@ static void			lsp_file_reset(void);
 static void			lsp_file_ring_dtor(void);
 static void			lsp_file_search_next(lsp_mode_t);
 static void			lsp_file_search_prev(lsp_mode_t);
+static blksize_t		lsp_file_set_blksize(void);
 static void			lsp_file_set_current_match(regmatch_t);
 static void			lsp_file_set_pos(off_t);
 static void			lsp_file_set_prev_line(void);
+static void			lsp_file_set_size(void);
 static void			lsp_file_toc_add(const struct lsp_line_t *, int);
 static void			lsp_file_ungetch(void);
 static void			lsp_files_list(void);
@@ -284,7 +289,6 @@ static regmatch_t		lsp_search_file_next(void);
 static regmatch_t		lsp_search_find_prev_match(struct lsp_line_t **);
 static regmatch_t		lsp_search_next(void);
 static regmatch_t		lsp_search_toc_next(void);
-static blksize_t		lsp_set_fd_blksize(void);
 static void			lsp_set_no_current_match(void);
 static size_t			lsp_skip_bsp(const char *);
 static size_t			lsp_skip_sgr(const char *);

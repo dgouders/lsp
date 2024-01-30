@@ -1384,15 +1384,19 @@ static void lsp_file_close()
 	}
 }
 
-static blksize_t lsp_set_fd_blksize()
+/*
+ * Set buffer size for current file for read operations.
+ *
+ * fixme: Perhaps, we later need to tweak this and use pagesize or something
+ *        else.
+ */
+static blksize_t lsp_file_set_blksize()
 {
 	struct stat statbuf;
 
 	fstat(cf->fd, &statbuf);
 
 	cf->blksize = statbuf.st_blksize;
-	// fixme: perhaps, use pagesize, here.
-	//cf->blksize = 1024;
 }
 
 /*
@@ -1406,7 +1410,7 @@ static void lsp_file_inject_line(const char *line)
 	lsp_file_add_line(line);
 
 	cf->size = LSP_FSIZE_UNKNOWN;
-	lsp_set_fd_blksize();
+	lsp_file_set_blksize();
 	cf->data->buffer = lsp_realloc(cf->data->buffer, cf->blksize);
 }
 
@@ -1821,8 +1825,6 @@ static void lsp_open_cterm()
  */
 static void lsp_file_init_stdin()
 {
-	struct stat statbuf;
-
 	lsp_debug("No input files given -- checking stdin...");
 
 	if (isatty(STDIN_FILENO))
@@ -1832,10 +1834,8 @@ static void lsp_file_init_stdin()
 	   Let's use the the empty string. */
 	lsp_file_add("", 0);
 
-	fstat(STDIN_FILENO, &statbuf);
-
 	cf->size = LSP_FSIZE_UNKNOWN;
-	cf->blksize = statbuf.st_blksize;
+	lsp_file_set_blksize();
 
 	/* Move stdin to something > 2 and and then use the controlling terminal
 	 * as the one we use for the user to communicate with us. */
@@ -2025,12 +2025,55 @@ static void lsp_file_move_here(struct file_t *file_p)
 }
 
 /*
+ * Set size of current file.
+ */
+static void lsp_file_set_size()
+{
+	struct stat statbuf;
+	char *path;
+
+	if (fstat(cf->fd, &statbuf) == -1)
+		lsp_error("%s: %s", cf->name, strerror(errno));
+
+	if (!(S_ISREG(statbuf.st_mode) || S_ISFIFO(statbuf.st_mode)))
+		lsp_error("%s: %s: unsupported file type.",
+			  __func__, cf->name);
+
+	path = realpath(cf->name, NULL);
+	if (path == NULL ) {
+		lsp_debug("%s: couldn't get realpath(3) for %s",
+			  __func__, cf->name);
+		cf->size = LSP_FSIZE_UNKNOWN;
+		return;
+	}
+
+	/*
+	 * The size reported for some files (e.g. kernel generated pseudofiles)
+	 * is not accurate.  We handle them like stdin: unknown size until
+	 * read(2) hits EOF.
+	 */
+	if (LSP_STRN_EQ(path, "/proc/", 6) ||
+	    LSP_STRN_EQ(path, "/sys/", 5)) {
+		cf->size = LSP_FSIZE_UNKNOWN;
+		goto out;
+	}
+
+	/* We know sizes only of regular files. */
+	if (S_ISREG(statbuf.st_mode))
+		cf->size = statbuf.st_size;
+	else
+		cf->size = LSP_FSIZE_UNKNOWN;
+
+out:
+	free(path);
+}
+
+/*
  * Initialize ring of input files
  * Open the first given file (or stdin) for reading.
  */
 static void lsp_file_init_ring()
 {
-	struct stat statbuf;
 	struct file_t *ring_start = cf;
 
 	if (cf == NULL) {
@@ -2048,20 +2091,9 @@ static void lsp_file_init_ring()
 		if (cf->fd == -1)
 			lsp_error("%s: %s", cf->name, strerror(errno));
 
-		if (fstat(cf->fd, &statbuf) == -1)
-			lsp_error("%s: %s", cf->name, strerror(errno));
+		lsp_file_set_size();
 
-		if (!(S_ISREG(statbuf.st_mode) || S_ISFIFO(statbuf.st_mode)))
-			lsp_error("%s: %s: unsupported file type.",
-				  __func__, cf->name);
-
-		/* We know sizes only of regular files. */
-		if (S_ISREG(statbuf.st_mode))
-			cf->size = statbuf.st_size;
-		else
-			cf->size = LSP_FSIZE_UNKNOWN;
-
-		cf->blksize = statbuf.st_blksize;
+		lsp_file_set_blksize();
 
 		lsp_file_add_block();
 
@@ -4358,7 +4390,7 @@ static void lsp_exec_man()
 	/* parent process */
 	cf->size = LSP_FSIZE_UNKNOWN;
 
-	lsp_set_fd_blksize();
+	lsp_file_set_blksize();
 
 	/* Try to find a manpage name heading its content. */
 	char *name = lsp_read_manpage_name();
@@ -4976,11 +5008,7 @@ static void lsp_cmd_create_apropos()
 	cf->fp = fp;
 	cf->fd = fileno(fp);
 
-	struct stat statbuf;
-	fstat(STDIN_FILENO, &statbuf);
-
-	cf->blksize = statbuf.st_blksize;
-
+	lsp_file_set_blksize();
 	lsp_file_add_block();
 
 	if (lsp_verify_with_apropos)
