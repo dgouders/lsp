@@ -3407,6 +3407,10 @@ static uint lsp_mblen(const char *mb_p, size_t n)
 	if (ret == -1) {
 		lsp_debug("%s: could not determine length of multibyte character: \"%s[%d]\"",
 			  __func__, mb_p, n);
+
+		/* Reset shift state internal to mblen() */
+		mblen(NULL, 0);
+
 		/* Treat the char as non-multibyte. */
 		return 1;
 	}
