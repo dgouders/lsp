@@ -1174,7 +1174,7 @@ static void lsp_line_add_screen_lines(struct lsp_line_t *line)
 		i += lsp_skip_to_payload(line->raw + i);
 
 		/* Proceed with next (possibly multibyte) character */
-		size_t ch_len = lsp_mbtowc(NULL, line->raw + i, line->len - i);
+		size_t ch_len = lsp_mblen(line->raw + i, line->len - i);
 
 		if (line->raw[i] == '\t') {
 			current_len += lsp_expand_tab(current_len);
@@ -3423,6 +3423,8 @@ static uint lsp_mblen(const char *mb_p, size_t n)
  *
  * Currently, we distinguish three special conditions but do the same for all of
  * them.  Could be cleaned up if it turns out to be the right thing.
+ *
+ * Return just a length if wc_p is NULL.
  */
 static size_t lsp_mbtowc(wchar_t *wc_p, const char *mb_p, size_t n)
 {
@@ -3430,16 +3432,24 @@ static size_t lsp_mbtowc(wchar_t *wc_p, const char *mb_p, size_t n)
 
 	ch_len = mbrtowc(wc_p, mb_p, n, NULL);
 
+	/* Return length on success. */
+	if (ch_len != (size_t)-1 &&
+	    ch_len != (size_t)-2 &&
+	    ch_len > 0)
+		return ch_len;
+
+	if (wc_p == NULL)
+		/* No wchar given: just return a length. */
+		return 1;
+
 	if (ch_len == 0) {
 		/* L'\0' found.
 		   We take it as is but return 1 for its length. */
 		wc_p[0] = mb_p[0];
-		ch_len = 1;
 	} else if (ch_len == (size_t)-1) {
 		/* Invalid multibyte sequnce.
 		   Take char as is. */
 		wc_p[0] = mb_p[0];
-		ch_len = 1;
 	} else if (ch_len == (size_t)-2) {
 		/* Not sure how to react here.
 		   The line ends with '\n' which means
@@ -3448,10 +3458,9 @@ static size_t lsp_mbtowc(wchar_t *wc_p, const char *mb_p, size_t n)
 
 		   So, for now: take char as is. */
 		wc_p[0] = mb_p[0];
-		ch_len = 1;
 	}
 
-	return ch_len;
+	return 1;
 }
 
 static void lsp_invalidate_cm_cursor()
@@ -3526,7 +3535,7 @@ static int lsp_line_handle_leading_sgr(attr_t *attr, short *pair)
 				break;
 		}
 		/* Skip next possible multibyte sequence in the line. */
-		li += lsp_mbtowc(NULL, line->raw + li, strlen(line->raw) - li);
+		li += lsp_mblen(line->raw + li, strlen(line->raw) - li);
 	}
 
 	lsp_line_dtor(line);
