@@ -172,7 +172,10 @@ static char *lsp_detect_manpage(bool use_env)
 
 	free(regex_str);
 
-	ret = regexec(&preg, line->normalized, 1, pmatch, 0);
+	pmatch[0].rm_so = 0;
+	pmatch[0].rm_eo = line->nlen;
+
+	ret = regexec(&preg, line->normalized, 1, pmatch, REG_STARTEND);
 
 	regfree(&preg);
 
@@ -2223,13 +2226,15 @@ static regmatch_t lsp_search_find_prev_match(struct lsp_line_t **line)
 
 		/* Find all matches in the line; we need the last one. */
 		while (offset < (*line)->nlen) {
-			int eflags = REG_NOTEOL;
+			int eflags = REG_NOTEOL | REG_STARTEND;
 
 			if (offset > 0)
 				eflags |= REG_NOTBOL;
 
-			ret = regexec(cf->regex_p, (*line)->normalized + offset,
-				      1, pmatch, eflags);
+			pmatch[0].rm_so = offset;
+			pmatch[0].rm_eo = (*line)->nlen;
+
+			ret = regexec(cf->regex_p, (*line)->normalized, 1, pmatch, eflags);
 
 			if (ret != 0)
 				break;
@@ -2239,9 +2244,9 @@ static regmatch_t lsp_search_find_prev_match(struct lsp_line_t **line)
 				  (*line)->normalized + offset);
 
 			/* Store offsets relative to line start. */
-			match.rm_so = offset + pmatch[0].rm_so;
-			match.rm_eo = offset + pmatch[0].rm_eo;
-			offset += pmatch[0].rm_eo;
+			match.rm_so = pmatch[0].rm_so;
+			match.rm_eo = pmatch[0].rm_eo;
+			offset = pmatch[0].rm_eo;
 
 			/* Ensure progress for zero-length matches. */
 			if (pmatch[0].rm_so == pmatch[0].rm_eo)
@@ -2319,10 +2324,13 @@ static regmatch_t lsp_search_toc_next()
 		if (!line)
 			break;
 
-		int eflags = REG_NOTEOL;
+		int eflags = REG_NOTEOL | REG_STARTEND;
 
 		if (lsp_pos_is_at_bol(line->pos) == false)
 			eflags |= REG_NOTBOL;
+
+		pmatch[0].rm_so = 0;
+		pmatch[0].rm_eo = line->nlen;
 
 		ret = regexec(cf->regex_p, line->normalized, 1, pmatch, eflags);
 
@@ -2374,10 +2382,13 @@ static regmatch_t lsp_search_file_next()
 		if (!line)
 			break;
 
-		int eflags = REG_NOTEOL;
+		int eflags = REG_NOTEOL | REG_STARTEND;
 
 		if (lsp_pos_is_at_bol(line->pos) == false)
 			eflags |= REG_NOTBOL;
+
+		pmatch[0].rm_so = 0;
+		pmatch[0].rm_eo = line->nlen;
 
 		ret = regexec(cf->regex_p, line->normalized, 1, pmatch, eflags);
 
@@ -3351,17 +3362,22 @@ static size_t lsp_line_get_matches(const struct lsp_line_t *line, regmatch_t **p
 	/* Collect all pattern matches in this line */
 	for (i = 0; i < pmatch_len; i++) {
 		size_t offset;
-		(*pmatch)[i].rm_so = (off_t)-1;
-		(*pmatch)[i].rm_eo = (off_t)-1;
 
-		int eflags = 0;
+		int eflags = REG_STARTEND;
 
 		if (i > 0) {
 			eflags = REG_NOTBOL;
 		}
 
-		if (regexec(cf->regex_p, ptr, 1, *pmatch + i, eflags))
+		(*pmatch)[i].rm_so = 0;
+		(*pmatch)[i].rm_eo = slen - (ptr - sstring);
+
+		if (regexec(cf->regex_p, ptr, 1, *pmatch + i, eflags)) {
+			/* No more hits: mark end of matches. */
+			(*pmatch)[i].rm_so = (off_t)-1;
+			(*pmatch)[i].rm_eo = (off_t)-1;
 			break;
+		}
 
 		offset = ptr - sstring;
 		ptr += (*pmatch)[i].rm_eo;
