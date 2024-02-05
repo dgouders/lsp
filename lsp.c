@@ -3365,9 +3365,8 @@ static size_t lsp_line_get_matches(const struct lsp_line_t *line, regmatch_t **p
 
 		int eflags = REG_STARTEND;
 
-		if (i > 0) {
-			eflags = REG_NOTBOL;
-		}
+		if (i > 0)
+			eflags |= REG_NOTBOL;
 
 		(*pmatch)[i].rm_so = 0;
 		(*pmatch)[i].rm_eo = slen - (ptr - sstring);
