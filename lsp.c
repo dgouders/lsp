@@ -3556,11 +3556,11 @@ static int lsp_line_handle_leading_sgr(attr_t *attr, short *pair)
 	assert(line->len > (old_pos - line->pos));
 
 	/* Terminate line where the tail starts. */
-	line->raw[old_pos - line->pos] = '\0';
+	line->len = old_pos - line->pos;
 
 	size_t li = 0;
 
-	while (line->raw[li]) {
+	while (li < line->len) {
 		while (lsp_is_sgr_sequence(line->raw + li)) {
 			size_t l;
 			/* Get attributes according to SGR sequence. */
@@ -3575,7 +3575,7 @@ static int lsp_line_handle_leading_sgr(attr_t *attr, short *pair)
 				break;
 		}
 		/* Skip next possible multibyte sequence in the line. */
-		li += lsp_mblen(line->raw + li, strlen(line->raw) - li);
+		li += lsp_mblen(line->raw + li, line->len - li);
 	}
 
 	lsp_line_dtor(line);
