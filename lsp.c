@@ -304,30 +304,30 @@ static size_t lsp_skip_to_payload(const char *str, size_t len)
 }
 
 /*
- * Return length needed to skip leading backspace sequences in given string str
+ * Return length needed to skip leading backspace sequences in given data at ptr
  * of given length len.
  */
-static size_t lsp_skip_bsp(const char *str, size_t len)
+static size_t lsp_skip_bsp(const char *ptr, size_t len)
 {
 	size_t i = 0;
 	size_t ch_len;
 
 	while (1) {
-		if (str[i] == '\b') {
+		if (ptr[i] == '\b') {
 			/*
 			 * The next char is a \b, i.e. this is not a
 			 * backspace sequence we are interested in.
-			 * Return zero to consider any backspace in the string
+			 * Return zero to consider any backspace in the data
 			 * uninteresting.
 			 */
 			return 0;
 		}
 
 		/* Get length of possible multibyte char. */
-		ch_len = lsp_mblen(str + i, len - i);
+		ch_len = lsp_mblen(ptr + i, len - i);
 
 		if (i + ch_len < len &&
-		    str[i + ch_len] != '\b')
+		    ptr[i + ch_len] != '\b')
 			break;
 
 		/* Skip this char and the following \b. */
@@ -341,15 +341,16 @@ static size_t lsp_skip_bsp(const char *str, size_t len)
 }
 
 /*
- * Return length needed to skip leading SGR sequence(s) in given string.
+ * Return length needed to skip leading SGR sequence(s) in given data at ptr of
+ * length len.
  */
-static size_t lsp_skip_sgr(const char *str, size_t len)
+static size_t lsp_skip_sgr(const char *ptr, size_t len)
 {
 	size_t i = 0;
 
 	/* Skip possible SGR sequences */
-	while (i < len && lsp_is_sgr_sequence(str + i))
-		i += lsp_get_sgr_len(str + i);
+	while (i < len && lsp_is_sgr_sequence(ptr + i))
+		i += lsp_get_sgr_len(ptr + i);
 
 	return i;
 }
@@ -1283,24 +1284,6 @@ static struct lsp_line_t *lsp_get_line_from_here()
 			continue;
 		}
 
-		/* A '\0' also is a character we won't take as is - it
-		   would terminate our raw string.  First seen in bash's `git
-		   log -p`.
-		   If the following character is a \b, we replace the
-		   '\0' with the character after \b which makes it the bold
-		   version of it.  Otherwise we replace '\0' by "^@". */
-		if (ch == '\0') {
-			if (lsp_file_peek_fw() == '\b') {
-				ch = lsp_file_getch();
-				str[pos - 1] = lsp_file_peek_fw();
-				continue;
-			}
-
-			str[pos - 1] = '^';
-			ch = '@';
-			continue;
-		}
-
 		ch = lsp_file_getch();
 	}
 
@@ -1326,13 +1309,13 @@ static struct lsp_line_t *lsp_get_line_from_here()
 }
 
 /*
- * Do a pseudo-normalization until the normalized string would have
+ * Do a pseudo-normalization until the normalized data would have
  * the given length.
  *
- * Return the length, to which the raw string str of lenth str_len was
+ * Return the length, to which the raw data raw of lenth raw_len was
  * processed to achieve this.
  */
-static size_t lsp_normalize_count(const char *str, size_t str_len, size_t length)
+static size_t lsp_normalize_count(const char *raw, size_t raw_len, size_t length)
 {
 	size_t nlen;
 	uint ch_len;
@@ -1341,17 +1324,17 @@ static size_t lsp_normalize_count(const char *str, size_t str_len, size_t length
 	if (!length)
 		return 0;
 
-	if (length > str_len)
-		lsp_error("%s: length %ld > str_len %ld str: \"%s\"",
-			  __func__, length, str_len, str);
+	if (length > raw_len)
+		lsp_error("%s: length %ld > raw_len %ld raw: \"%s\"",
+			  __func__, length, raw_len, raw);
 
-	/* Process the string ignoring <char>\b sequences and SGR sequences. */
+	/* Process the data ignoring <char>\b sequences and SGR sequences. */
 	for (i = 0, nlen = 0; nlen < length; i += ch_len) {
 		/* Ignore possible control sequences */
-		i += lsp_skip_to_payload(str + i, str_len - i);
+		i += lsp_skip_to_payload(raw + i, raw_len - i);
 
 		/* Get length of possible multibyte char. */
-		ch_len = lsp_mblen(str + i, str_len - i);
+		ch_len = lsp_mblen(raw + i, raw_len - i);
 		nlen += ch_len;
 	}
 
@@ -1374,7 +1357,7 @@ static size_t lsp_normalize_count(const char *str, size_t str_len, size_t length
  *       string.  This would be meaningless, because the normalized data itself
  *       can contain null-characters.
  */
-static char *lsp_normalize(const char *src, size_t length, size_t *n_length)
+static char *lsp_normalize(const char *raw, size_t raw_len, size_t *n_length)
 {
 	char *normalized;
 	uint ch_len;
@@ -1382,33 +1365,33 @@ static char *lsp_normalize(const char *src, size_t length, size_t *n_length)
 	size_t i;
 
 	/* We should be allocating too much memory, because the worst we do is
-	   to ignore characters from the raw string.
+	   to ignore characters from the raw data.
 	   We correct the allocated size below. */
-	normalized = lsp_malloc(length);
+	normalized = lsp_malloc(raw_len);
 
-	/* Copy the string ignoring c\b sequences */
-	for (i = 0, nlen = 0; i < length; i += ch_len) {
-		assert(nlen < length);
+	/* Copy the data ignoring c\b sequences */
+	for (i = 0, nlen = 0; i < raw_len; i += ch_len) {
+		assert(nlen < raw_len);
 
 		/* Ignore possible control sequences */
-		i += lsp_skip_to_payload(src + i, length - i);
+		i += lsp_skip_to_payload(raw + i, raw_len - i);
 
 		/* Get length of possible multibyte char. */
-		ch_len = lsp_mblen(src + i, length - i);
+		ch_len = lsp_mblen(raw + i, raw_len - i);
 
-		/* Copy the char to normalized string. */
-		memcpy(normalized + nlen, src + i, ch_len);
+		/* Append the char to normalized data. */
+		memcpy(normalized + nlen, raw + i, ch_len);
 		nlen += ch_len;
 	}
 
 	/* Adjust the allocated memory to the correct size */
-	if (length > nlen)
+	if (raw_len > nlen)
 		normalized = lsp_realloc(normalized, nlen);
 
 	/* ...or error out if our heuristics failed. */
-	if (length < nlen)
-		lsp_error("Allocated only %ld bytes for string of %ld bytes",
-			  length, nlen);
+	if (raw_len < nlen)
+		lsp_error("Allocated only %ld bytes for data of %ld bytes",
+			  raw_len, nlen);
 
 	if (n_length != NULL)
 		*n_length = nlen;
@@ -1418,13 +1401,13 @@ static char *lsp_normalize(const char *src, size_t length, size_t *n_length)
 /*
  * Do a normalization and return the result as a string.
  */
-static char *lsp_normalize2str(const char *src, size_t len) {
+static char *lsp_normalize2str(const char *raw, size_t raw_len) {
 	size_t norm_len;
 	char *norm;
 	char *str;
 
 	/* Normalize the data up to the given length. */
-	norm = lsp_normalize(src, len, &norm_len);
+	norm = lsp_normalize(raw, raw_len, &norm_len);
 
 	/* Tranform it to a string. */
 	str = lsp_mdup2str(norm, norm_len);
@@ -2311,7 +2294,7 @@ static regmatch_t lsp_search_find_prev_match(struct lsp_line_t **line)
 				offset += lsp_mblen((*line)->normalized + offset,
 						    (*line)->nlen - offset);
 
-			/* Now, calculate match offsets for raw string. */
+			/* Now, calculate match offsets for raw data. */
 			match.rm_so = (*line)->pos +
 				lsp_normalize_count((*line)->raw, (*line)->len, match.rm_so);
 			match.rm_eo = (*line)->pos +
@@ -3440,7 +3423,7 @@ static size_t lsp_line_get_matches(const struct lsp_line_t *line, regmatch_t **p
 		(*pmatch)[i].rm_so += offset;
 		(*pmatch)[i].rm_eo += offset;
 
-		/* Compute offsets for raw string, because it is the
+		/* Compute offsets for raw data, because it is the
 		   one that we need to do highlighting for. */
 		(*pmatch)[i].rm_so = lsp_normalize_count(line->raw, line->len,
 						       (*pmatch)[i].rm_so);
@@ -3478,8 +3461,8 @@ static uint lsp_mblen(const char *mb_p, size_t n)
 	int ret = mblen(mb_p, n);
 
 	if (ret == -1) {
-		lsp_debug("%s: could not determine length of multibyte character: \"%s[%d]\"",
-			  __func__, mb_p, n);
+		lsp_debug("%s: could not determine length of multibyte character: \"%02X[%u]\"",
+			  __func__, *mb_p, n);
 
 		/* Reset shift state internal to mblen() */
 		mblen(NULL, 0);
@@ -4007,9 +3990,9 @@ static void lsp_line_fw_screen_line(struct lsp_line_t *line)
 	int n = 0;
 	wchar_t ch;
 
-	/* We can just forward the full line if the normalized string fits within
+	/* We can just forward the full line if the normalized data fits within
 	   the width of the window.
-	   This is kind of conservative, because the normalized string could
+	   This is kind of conservative, because the normalized data could
 	   still consist of multibyte characters and consume even fewer
 	   columns than the byte count implies.	*/
 	if (lsp_maxx >= line->nlen) {
