@@ -59,6 +59,15 @@
  *
  *   The above means: line 1 (index 0 in the array) always starts at
  *   position 0 in the file.  A constant value, yes.
+ *
+ * gref
+ * ----
+ * This is short for _global reference_: manual pages usually refer to others
+ * and (if not toggled) we spend the effort to check if such references are
+ * valid before offering them as links.  Because the reference "lsp(1)", once
+ * validated from within file a would also be valid from within file b we
+ * globally keep record of such validated references, i.e. they are meaningful
+ * to any file.
  */
 
 #define _GNU_SOURCE
@@ -3595,7 +3604,7 @@ static void lsp_display_page()
 	wchar_t ch[2] = { L'\0', L'\0' };
 	size_t ch_len;
 	wchar_t next_ch = L'\0';
-	/* Needed to distinguish a bold '_' and an underline. */
+	/* Needed to distinguish a bold '_' and italics. */
 	wchar_t next_ch2;
 	/* Complex char for cursesw routines. */
 	cchar_t cchar_ch[2];
@@ -4364,11 +4373,6 @@ char** lsp_create_argv(char *format, char *str)
  *
  * Return the found name or NULL on failure.
  * The caller has to free() the name.
- *
- * fixme: currently, we don't return NULL or handle all possible errors.
- *        We should detect if there is no such heading line.  We must then copy
- *        the read data to cf->data, because it obviously was manpage content.
- *        And, we should know how to proceed if our hack failed...
  */
 static char *lsp_read_manpage_name()
 {
