@@ -734,8 +734,8 @@ static void lsp_file_toc_add(const struct lsp_line_t *line, int level)
 {
 	struct toc_node_t *toc_new_p;
 
-	lsp_debug("%s: adding toc line level %d: \"%s\"",
-		  __func__, level, line->normalized);
+	lsp_debug("%s: adding toc line level %d: \"%.*s\"",
+		  __func__, level, line->nlen, line->normalized);
 
 	if (!cf->toc) {
 		cf->toc = lsp_calloc(1, sizeof(struct toc_node_t));
@@ -1332,8 +1332,8 @@ static size_t lsp_normalize_count(const char *str, size_t length)
 	size_t str_len = strlen(str);
 
 	if (length > str_len)
-		lsp_error("%s: length %ld > strlen(str) %ld "
-			  "str: \"%s\"\n", __func__, length, str_len, str);
+		lsp_error("%s: length %ld > str_len %ld str: \"%s\"",
+			  __func__, length, str_len, str);
 
 	/* Process the string ignoring <char>\b sequences and SGR sequences. */
 	for (i = 0, nlen = 0; nlen < length; i += ch_len) {
@@ -2261,8 +2261,9 @@ static regmatch_t lsp_search_find_prev_match(struct lsp_line_t **line)
 			if (ret != 0)
 				break;
 
-			lsp_debug("%s: regexec match[%u]: \"%s\"",
+			lsp_debug("%s: regexec match[%u]: \"%.*s\"",
 				  __func__, pmatch[0].rm_eo - pmatch[0].rm_so,
+				  pmatch[0].rm_eo - pmatch[0].rm_so,
 				  (*line)->normalized + offset);
 
 			/* Store offsets relative to line start. */
@@ -2357,9 +2358,9 @@ static regmatch_t lsp_search_toc_next()
 		ret = regexec(cf->regex_p, line->normalized, 1, pmatch, eflags);
 
 		if (ret == 0) {
-			lsp_debug("%s: regexec match[%u]: \"%s\"",
+			lsp_debug("%s: regexec match[%u]: \"%.*s\"",
 				  __func__, pmatch[0].rm_eo - pmatch[0].rm_so,
-				  line->normalized);
+				  line->nlen, line->normalized);
 
 			match.rm_so = line->pos +
 				lsp_normalize_count(line->raw, pmatch[0].rm_so);
@@ -2415,9 +2416,9 @@ static regmatch_t lsp_search_file_next()
 		ret = regexec(cf->regex_p, line->normalized, 1, pmatch, eflags);
 
 		if (ret == 0) {
-			lsp_debug("%s: regexec match[%u]: \"%s\"",
+			lsp_debug("%s: regexec match[%u]: \"%.*s\"",
 				  __func__, pmatch[0].rm_eo - pmatch[0].rm_so,
-				  line->normalized);
+				  line->nlen, line->normalized);
 
 			match.rm_so = line->pos +
 				lsp_normalize_count(line->raw, pmatch[0].rm_so);
