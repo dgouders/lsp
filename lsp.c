@@ -3154,7 +3154,7 @@ struct gref_t *lsp_get_gref_at_pos(regmatch_t pos)
 
 	if (!line) {
 		lsp_error("%s: could not get a line at pos %ld",
-			  __func__, pos);
+			  __func__, pos.rm_so);
 	}
 
 	char *ref_start = line->raw + (pos.rm_so - line->pos);
