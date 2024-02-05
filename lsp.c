@@ -86,6 +86,29 @@
 #include "lsp.h"
 
 /*
+ * Return a duplicate of data at *src of length len.
+ */
+static char *lsp_mdup(const char *src, size_t len)
+{
+	char *mem = lsp_malloc(len);
+
+	memcpy(mem, src, len);
+
+	return mem;
+}
+
+/*
+ * Duplicate data at *src of the given length len to a string.
+ */
+static char *lsp_mdup2str(const char *src, size_t len)
+{
+	char *str = lsp_malloc(len + 1);
+	memcpy(str, src, len);
+	str[len] = '\0';
+	return str;
+}
+
+/*
  * Our memory allocators with error handling.
  */
 static void *lsp_malloc(size_t size)
@@ -185,14 +208,13 @@ static char *lsp_detect_manpage(bool use_env)
 		return NULL;
 	}
 
-	name = strchr(line->normalized, ')');
+	name = memchr(line->normalized, ')', line->nlen);
 	size_t len = name + 1 - line->normalized;
-	line->normalized[len] = '\0';
 
-	if (lsp_man_case_sensitivity)
-		name = strdup(line->normalized);
-	else
-		name = lsp_to_lower(line->normalized);
+	name = lsp_mdup2str(line->normalized, len);
+
+	if (!lsp_man_case_sensitivity)
+		lsp_to_lower(name);
 
 	lsp_debug("%s: manual page detected \"%s\"", __func__, name);
 
@@ -2000,7 +2022,7 @@ static int lsp_open_file(const char *name)
 			cf->fd = open(cf->name, 0, "r");
 		} else {
 			lsp_debug("%s: opening replacement file \"%s\"", __func__, buffer);
-			cf->rep_name = strdup(buffer);
+			cf->rep_name = lsp_mdup(buffer, nread);
 			cf->fd = open(cf->rep_name, 0, "r");
 		}
 	}
@@ -2433,35 +2455,32 @@ static int lsp_gref_henter(struct gref_t *gref_p)
 }
 
 /*
- * Duplicate the given string to one with all lowercase chars.
+ * Translate the given string to one with all lowercase chars.
  */
-static char *lsp_to_lower(char *str)
+static void lsp_to_lower(char *str)
 {
 	int i;
-	char *new_str = lsp_malloc(strlen(str) + 1);
+	size_t len = strlen(str);
 
-	for (i = 0; str[i]; i++)
-		new_str[i] = tolower(str[i]);
+	for (i = 0; i < len; i++)
+		str[i] = tolower(str[i]);
 
-	new_str[i] = '\0';
-
-	return new_str;
+	return;
 }
 
 /*
  * Search for a global reference.
  * Add it if it does not exist.
  */
-static struct gref_t *lsp_gref_search(char *name)
+static struct gref_t *lsp_gref_search(const char *name)
 {
 	struct gref_t *ptr;
 	char *tmp_name;
 
-	if (!lsp_man_case_sensitivity) {
-		tmp_name = lsp_to_lower(name);
-	} else {
-		tmp_name = strdup(name);
-	}
+	tmp_name = strdup(name);
+
+	if (!lsp_man_case_sensitivity)
+		lsp_to_lower(tmp_name);
 
 	if (lsp_grefs) {
 		ptr = lsp_gref_find(tmp_name);
@@ -2482,7 +2501,7 @@ static struct gref_t *lsp_gref_search(char *name)
 
 	/* gref not found: add it. */
 	ptr = lsp_malloc(sizeof(struct gref_t));
-	ptr->name = tmp_name;   /* strdup() happend in lsp_to_lower()! */
+	ptr->name = tmp_name;   /* duplication already done. */
 	ptr->valid = -1;	/* not yet validated */
 
 	if (lsp_grefs)
@@ -3342,10 +3361,8 @@ static size_t lsp_line_get_matches(const struct lsp_line_t *line, regmatch_t **p
 	 *
 	 * Duplicate the normalized line and remove the final \n.
 	 */
-	char *sstring = strdup(line->normalized);
+	char *sstring = lsp_mdup(line->normalized, line->nlen - 1);
 	size_t slen = line->nlen - 1;
-
-	sstring[slen] = '\0';
 
 	/* Allocate memory for max possible number of matches and that
 	   should be the number of bytes in the line.
@@ -4641,7 +4658,7 @@ static char *lsp_man_get_section(off_t pos)
 	if (line->pos == 0)
 		section_name = strdup("_start_of_manual_page_");
 	else
-		section_name = strdup(line->normalized);
+		section_name = lsp_mdup2str(line->normalized, line->nlen);
 
 	lsp_line_dtor(line);
 
@@ -4944,7 +4961,7 @@ static char *lsp_cmd_select_file()
 			if (LSP_STR_EQ(line->raw, "*stdin*")) {
 				file_name = strdup("");
 			} else
-				file_name = strdup(line->raw);
+				file_name = lsp_mdup2str(line->raw, line->len);
 
 			lsp_line_dtor(line);
 			return file_name;
@@ -5087,10 +5104,11 @@ static void lsp_apropos_create_grefs()
 
 		assert(end_ref != (void *)1);
 
-		/* Terminate the line string after the reference. */
-		*end_ref = '\0';
+		char *ref_name = lsp_mdup2str(line->normalized, end_ref - line->normalized);
 
-		gref = lsp_gref_search(line->normalized);
+		gref = lsp_gref_search(ref_name);
+
+		free(ref_name);
 
 		assert(gref != NULL);
 
