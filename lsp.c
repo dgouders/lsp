@@ -4589,26 +4589,28 @@ static size_t lsp_man_count_words_in_section()
 static size_t lsp_line_count_words(struct lsp_line_t *line)
 {
 	char *ptr;
+	char *end_ptr;
 	size_t wcnt = 0;
 
 	if (!line)
 		return 0;
 
 	ptr = line->normalized;
+	end_ptr = line->normalized + line->nlen;
 
-	while (*ptr != '\0') {
+	while (ptr < end_ptr) {
 		/* Skip blanks. */
-		while (*ptr != '\0' && isblank(*ptr))
+		while (ptr < end_ptr && isblank(*ptr))
 			ptr++;
 
-		if (*ptr == '\0')
+		if (ptr == end_ptr)
 			break;
 
 		/* A new word starts here. */
 		wcnt++;
 
 		/* Go to end of word. */
-		while (*ptr != '\0' && !isblank(*ptr))
+		while (ptr < end_ptr && !isblank(*ptr))
 			ptr++;
 	}
 
@@ -4700,7 +4702,7 @@ static int lsp_man_goto_section(char *section)
 			return -1;
 		}
 
-		if (LSP_STR_EQ(line->normalized, section))
+		if (LSP_STRN_EQ(line->normalized, section, line->nlen))
 			proceed = false;
 
 		lsp_line_dtor(line);
