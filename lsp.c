@@ -3435,6 +3435,13 @@ static size_t lsp_line_get_matches(const struct lsp_line_t *line, regmatch_t **p
  */
 static uint lsp_mblen(const char *mb_p, size_t n)
 {
+	/*
+	 * mblen() returns 0 on null-characters but we don't give it a special
+	 * meaning -- it is just one character.
+	 */
+	if (*mb_p == '\0')
+		return 1;
+
 	int ret = mblen(mb_p, n);
 
 	if (ret == -1) {
