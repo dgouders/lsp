@@ -293,20 +293,21 @@ static void lsp_goto_bol()
  * Return length needed to skip control sequences (SGR or backspace) to reach
  * the next payload character.
  */
-static size_t lsp_skip_to_payload(const char *str)
+static size_t lsp_skip_to_payload(const char *str, size_t len)
 {
 	size_t i = 0;
 
-	i += lsp_skip_sgr(str);
-	i += lsp_skip_bsp(str);
+	i += lsp_skip_sgr(str, len);
+	i += lsp_skip_bsp(str, len);
 
 	return i;
 }
 
 /*
- * Return length needed to skip leading backspace sequences in given string.
+ * Return length needed to skip leading backspace sequences in given string str
+ * of given length len.
  */
-static size_t lsp_skip_bsp(const char *str)
+static size_t lsp_skip_bsp(const char *str, size_t len)
 {
 	size_t i = 0;
 	size_t ch_len;
@@ -323,13 +324,17 @@ static size_t lsp_skip_bsp(const char *str)
 		}
 
 		/* Get length of possible multibyte char. */
-		ch_len = lsp_mblen(str + i, strlen(str + i));
+		ch_len = lsp_mblen(str + i, len - i);
 
-		if (str[i + ch_len] != '\b')
+		if (i + ch_len < len &&
+		    str[i + ch_len] != '\b')
 			break;
 
 		/* Skip this char and the following \b. */
 		i += ch_len + 1;
+
+		if (i >= len)
+			return 0;
 	}
 
 	return i;
@@ -338,12 +343,12 @@ static size_t lsp_skip_bsp(const char *str)
 /*
  * Return length needed to skip leading SGR sequence(s) in given string.
  */
-static size_t lsp_skip_sgr(const char *str)
+static size_t lsp_skip_sgr(const char *str, size_t len)
 {
 	size_t i = 0;
 
 	/* Skip possible SGR sequences */
-	while (lsp_is_sgr_sequence(str + i))
+	while (i < len && lsp_is_sgr_sequence(str + i))
 		i += lsp_get_sgr_len(str + i);
 
 	return i;
@@ -1193,7 +1198,7 @@ static void lsp_line_add_screen_lines(struct lsp_line_t *line)
 		}
 
 		/* Ignore possible SGR sequences */
-		i += lsp_skip_sgr(line->raw + i);
+		i += lsp_skip_sgr(line->raw + i, line->len - i);
 
 		/* If we are in a new screen line and it consists of just a
 		   newline (plus possible SGR sequences) we don't count this
@@ -1205,7 +1210,7 @@ static void lsp_line_add_screen_lines(struct lsp_line_t *line)
 
 		new_screen_line = 0;
 
-		i += lsp_skip_to_payload(line->raw + i);
+		i += lsp_skip_to_payload(line->raw + i, line->len - i);
 
 		/* Proceed with next (possibly multibyte) character */
 		size_t ch_len = lsp_mblen(line->raw + i, line->len - i);
@@ -1266,7 +1271,6 @@ static struct lsp_line_t *lsp_get_line_from_here()
 		}
 
 		str[pos++] = ch;
-		str[pos] = '\0';
 
 		if (ch == '\n')
 			break;
@@ -1303,13 +1307,10 @@ static struct lsp_line_t *lsp_get_line_from_here()
 	/* Reallocate to correct size */
 	str = lsp_realloc(str, pos + 1);
 
-	assert(strlen(str) == pos);
-
 	line->len = pos;
 	line->raw = str;
 	line->current = line->raw;
-	line->normalized = lsp_normalize(str, pos);
-	line->nlen = strlen(line->normalized);
+	line->normalized = lsp_normalize(str, pos, &line->nlen);
 
 	/*
 	 * Finally, if the file size is still unknown, peek forward one byte to
@@ -1326,10 +1327,12 @@ static struct lsp_line_t *lsp_get_line_from_here()
 
 /*
  * Do a pseudo-normalization until the normalized string would have
- * the given length.  Return the length, to which the raw string was
+ * the given length.
+ *
+ * Return the length, to which the raw string str of lenth str_len was
  * processed to achieve this.
  */
-static size_t lsp_normalize_count(const char *str, size_t length)
+static size_t lsp_normalize_count(const char *str, size_t str_len, size_t length)
 {
 	size_t nlen;
 	uint ch_len;
@@ -1338,8 +1341,6 @@ static size_t lsp_normalize_count(const char *str, size_t length)
 	if (!length)
 		return 0;
 
-	size_t str_len = strlen(str);
-
 	if (length > str_len)
 		lsp_error("%s: length %ld > str_len %ld str: \"%s\"",
 			  __func__, length, str_len, str);
@@ -1347,7 +1348,7 @@ static size_t lsp_normalize_count(const char *str, size_t length)
 	/* Process the string ignoring <char>\b sequences and SGR sequences. */
 	for (i = 0, nlen = 0; nlen < length; i += ch_len) {
 		/* Ignore possible control sequences */
-		i += lsp_skip_to_payload(str + i);
+		i += lsp_skip_to_payload(str + i, str_len - i);
 
 		/* Get length of possible multibyte char. */
 		ch_len = lsp_mblen(str + i, str_len - i);
@@ -1358,7 +1359,8 @@ static size_t lsp_normalize_count(const char *str, size_t length)
 }
 
 /*
- * Return a normalized version of the raw str up to length.
+ * Return a normalized duplicate of the data pointed to by src up to length and
+ * store its length in n_length.
  *
  * Old man(1) style content works with \b (backspace):
  * - italics c is _\bc
@@ -1367,8 +1369,12 @@ static size_t lsp_normalize_count(const char *str, size_t length)
  * should give us the pure text.
  *
  * SGR sequences are also recognized and ignored.
+ *
+ * Note: this function returns data that is _not_ null-terminated, i.e. no
+ *       string.  This would be meaningless, because the normalized data itself
+ *       can contain null-characters.
  */
-static char *lsp_normalize(const char *str, size_t length)
+static char *lsp_normalize(const char *src, size_t length, size_t *n_length)
 {
 	char *normalized;
 	uint ch_len;
@@ -1378,33 +1384,53 @@ static char *lsp_normalize(const char *str, size_t length)
 	/* We should be allocating too much memory, because the worst we do is
 	   to ignore characters from the raw string.
 	   We correct the allocated size below. */
-	normalized = lsp_malloc(length + 1);
+	normalized = lsp_malloc(length);
 
 	/* Copy the string ignoring c\b sequences */
 	for (i = 0, nlen = 0; i < length; i += ch_len) {
+		assert(nlen < length);
+
 		/* Ignore possible control sequences */
-		i += lsp_skip_to_payload(str + i);
+		i += lsp_skip_to_payload(src + i, length - i);
 
 		/* Get length of possible multibyte char. */
-		ch_len = lsp_mblen(str + i, length - i);
+		ch_len = lsp_mblen(src + i, length - i);
 
 		/* Copy the char to normalized string. */
-		memcpy(normalized + nlen, str + i, ch_len);
+		memcpy(normalized + nlen, src + i, ch_len);
 		nlen += ch_len;
 	}
 
-	normalized[nlen++] = '\0';
-
 	/* Adjust the allocated memory to the correct size */
-	if ((length + 1) > nlen)
+	if (length > nlen)
 		normalized = lsp_realloc(normalized, nlen);
 
 	/* ...or error out if our heuristics failed. */
-	if ((length + 1) < nlen)
+	if (length < nlen)
 		lsp_error("Allocated only %ld bytes for string of %ld bytes",
-			  length + 1, nlen);
+			  length, nlen);
 
+	if (n_length != NULL)
+		*n_length = nlen;
 	return normalized;
+}
+
+/*
+ * Do a normalization and return the result as a string.
+ */
+static char *lsp_normalize2str(const char *src, size_t len) {
+	size_t norm_len;
+	char *norm;
+	char *str;
+
+	/* Normalize the data up to the given length. */
+	norm = lsp_normalize(src, len, &norm_len);
+
+	/* Tranform it to a string. */
+	str = lsp_mdup2str(norm, norm_len);
+
+	free(norm);
+	return str;
 }
 
 /*
@@ -2287,9 +2313,9 @@ static regmatch_t lsp_search_find_prev_match(struct lsp_line_t **line)
 
 			/* Now, calculate match offsets for raw string. */
 			match.rm_so = (*line)->pos +
-				lsp_normalize_count((*line)->raw, match.rm_so);
+				lsp_normalize_count((*line)->raw, (*line)->len, match.rm_so);
 			match.rm_eo = (*line)->pos +
-				lsp_normalize_count((*line)->raw, match.rm_eo);
+				lsp_normalize_count((*line)->raw, (*line)->len, match.rm_eo);
 
 			if (lsp_mode_is_search()) {
 				valid_match = match;
@@ -2372,9 +2398,9 @@ static regmatch_t lsp_search_toc_next()
 				  line->nlen, line->normalized);
 
 			match.rm_so = line->pos +
-				lsp_normalize_count(line->raw, pmatch[0].rm_so);
+				lsp_normalize_count(line->raw, line->len, pmatch[0].rm_so);
 			match.rm_eo = line->pos +
-				lsp_normalize_count(line->raw, pmatch[0].rm_eo);
+				lsp_normalize_count(line->raw, line->len, pmatch[0].rm_eo);
 
 			lsp_mode_set_highlight();
 			ret_val = match;
@@ -2430,9 +2456,9 @@ static regmatch_t lsp_search_file_next()
 				  line->nlen, line->normalized);
 
 			match.rm_so = line->pos +
-				lsp_normalize_count(line->raw, pmatch[0].rm_so);
+				lsp_normalize_count(line->raw, line->len, pmatch[0].rm_so);
 			match.rm_eo = line->pos +
-				lsp_normalize_count(line->raw, pmatch[0].rm_eo);
+				lsp_normalize_count(line->raw, line->len, pmatch[0].rm_eo);
 
 			lsp_mode_set_highlight();
 			ret_val = match;
@@ -2995,7 +3021,7 @@ static void lsp_file_set_current_match(regmatch_t match)
 	size_t match_start = match.rm_eo - line->pos;
 
 	/* Get lengths of control plus payload characters. */
-	size_t len = lsp_skip_to_payload(line->raw + match_start);
+	size_t len = lsp_skip_to_payload(line->raw + match_start, line->len - match_start);
 	len += lsp_mblen(line->raw + match_start + len,
 			 line->len - (match_start + len));
 
@@ -3079,11 +3105,9 @@ static void lsp_line_cut_tail(struct lsp_line_t *line, off_t t_pos)
 			  "cut the current line [%ld..%ld].\n",
 			  __func__, t_pos, line->pos, line->pos + line->len);
 
-	line->raw[t_pos - line->pos] = '\0';
-	line->len = strlen(line->raw);
+	line->len = t_pos - line->pos;
 	free(line->normalized);
-	line->normalized = lsp_normalize(line->raw, line->len);
-	line->nlen = strlen(line->normalized);
+	line->normalized = lsp_normalize(line->raw, line->len, &line->nlen);
 }
 
 /*
@@ -3189,7 +3213,7 @@ struct gref_t *lsp_get_gref_at_pos(regmatch_t pos)
 	char *ref_start = line->raw + (pos.rm_so - line->pos);
 
 	char *ref_name =
-		lsp_normalize(ref_start, pos.rm_eo - pos.rm_so);
+		lsp_normalize2str(ref_start, pos.rm_eo - pos.rm_so);
 
 	/* Create gref or get existing one. */
 	struct gref_t *gref = lsp_gref_search(ref_name);
@@ -3418,9 +3442,9 @@ static size_t lsp_line_get_matches(const struct lsp_line_t *line, regmatch_t **p
 
 		/* Compute offsets for raw string, because it is the
 		   one that we need to do highlighting for. */
-		(*pmatch)[i].rm_so = lsp_normalize_count(line->raw,
+		(*pmatch)[i].rm_so = lsp_normalize_count(line->raw, line->len,
 						       (*pmatch)[i].rm_so);
-		(*pmatch)[i].rm_eo = lsp_normalize_count(line->raw,
+		(*pmatch)[i].rm_eo = lsp_normalize_count(line->raw, line->len,
 						       (*pmatch)[i].rm_eo);
 
 		/* For references: only mark valid ones. */
@@ -3905,7 +3929,8 @@ static void lsp_display_page()
 					size_t l_offset = lindex + ch_len;
 
 					/* Consume SGR sequences if any */
-					l_offset += lsp_skip_sgr(line->raw + l_offset);
+					l_offset += lsp_skip_sgr(line->raw + l_offset,
+								 line->len - l_offset);
 
 					/* Read correct next_ch if there was an SGR sequence */
 					if (l_offset != lindex + ch_len)
@@ -4009,7 +4034,7 @@ static void lsp_line_fw_screen_line(struct lsp_line_t *line)
 
 	/* We consumed i bytes from line for one screen line.  Remove them.
 	   We use memmove(), because the whole allocated memory gets free()'d, later. */
-	int raw_len = lsp_normalize_count(line->raw, i);
+	int raw_len = lsp_normalize_count(line->raw, line->len, i);
 	line->pos += raw_len;
 	line->len -= raw_len;
 	memmove(line->raw, line->raw + raw_len, line->len);
@@ -4966,13 +4991,13 @@ static char *lsp_cmd_select_file()
 			line = lsp_get_line_at_pos(cf->lines[first_line + line_no]);
 
 			/* Remove the final newline '\n'.*/
-			line->raw[line->len - 1] = '\0';
+			line->len--;
 
 			lsp_debug("%s: selected file %s", __func__, line->raw);
 
 			/* The name *stdin* is a generated one that needs to be
 			   converted. */
-			if (LSP_STR_EQ(line->raw, "*stdin*")) {
+			if (LSP_STRN_EQ(line->raw, "*stdin*", line->len)) {
 				file_name = strdup("");
 			} else
 				file_name = lsp_mdup2str(line->raw, line->len);
@@ -5114,7 +5139,7 @@ static void lsp_apropos_create_grefs()
 		line = lsp_get_line_at_pos(cf->lines[line_nr]);
 
 		/* Find closing parenthesis of "xyz(nn)" */
-		end_ref = strchr(line->normalized, ')') + 1;
+		end_ref = memchr(line->normalized, ')', line->nlen) + 1;
 
 		assert(end_ref != (void *)1);
 

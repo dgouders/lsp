@@ -71,8 +71,13 @@ struct toc_node_t {
 
 /*
  * Structure for line operations.
- * The member normalized is for a string without formatting information,
+ * The member .normalized is for data without formatting information,
  * i.e. backspace and SGR sequences.
+ *
+ * Note: .raw and .normalized are *not* strings with null-terminators.
+ *       The reason is that users can feed us any data in the range [0x00-0xff]
+ *       -- null-terminators for .raw and .normalized would be meaningless and
+ *       actually just complicate things.
  *
  * Lines might be longer than the screen width.  So, we also maintain pointers
  * to "screen-lines".  Currently, this overhead just makes scrolling backwards
@@ -263,8 +268,9 @@ static void			lsp_mode_toggle_highlight(void);
 static void			lsp_mode_unset_highlight(void);
 static void			lsp_mode_unset_search_or_refs(void);
 static void			lsp_mode_unset_toc(void);
-static char *			lsp_normalize(const char *, size_t);
-static size_t			lsp_normalize_count(const char *, size_t);
+static char *			lsp_normalize(const char *, size_t, size_t*);
+static char *			lsp_normalize2str(const char *, size_t);
+static size_t			lsp_normalize_count(const char *, size_t, size_t);
 static void			lsp_open_cterm(void);
 static int			lsp_open_file(const char *);
 static void			lsp_open_manpage(char *);
@@ -292,9 +298,9 @@ static regmatch_t		lsp_search_find_prev_match(struct lsp_line_t **);
 static regmatch_t		lsp_search_next(void);
 static regmatch_t		lsp_search_toc_next(void);
 static void			lsp_set_no_current_match(void);
-static size_t			lsp_skip_bsp(const char *);
-static size_t			lsp_skip_sgr(const char *);
-static size_t			lsp_skip_to_payload(const char *);
+static size_t			lsp_skip_bsp(const char *, size_t);
+static size_t			lsp_skip_sgr(const char *, size_t);
+static size_t			lsp_skip_to_payload(const char *, size_t);
 static void			lsp_to_lower(char *);
 static struct toc_node_t *	lsp_pos_to_toc(off_t);
 static void			lsp_toc_bw(size_t);
