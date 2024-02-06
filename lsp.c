@@ -960,14 +960,9 @@ static int lsp_file_peek_bw()
 	if (lsp_pos <= 0)
 		return -1;	/* Beginning of file */
 
-	lsp_file_align_buffer();
+	lsp_file_set_pos(lsp_pos - 1);
 
-	if ((lsp_pos - 1) >= cf->data->seek)
-		/* The byte is in the current buffer */
-		return cf->data->buffer[(lsp_pos - 1) % cf->blksize];
-	else
-		/* The byte was the last one in the previous buffer */
-		return cf->data->prev->buffer[cf->blksize - 1];
+	return lsp_file_getch();
 }
 
 /*
