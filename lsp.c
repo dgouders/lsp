@@ -809,8 +809,7 @@ static void lsp_toc_dtor(struct file_t *file)
 static void lsp_toc_rewind(off_t pos)
 {
 	if (!cf->toc)
-		lsp_error("%s: called without active TOC for %s",
-			  __func__, cf->name);
+		return;
 
 	if (pos == (off_t)-1) {
 		/* Go to end */
@@ -1622,6 +1621,10 @@ static ssize_t lsp_file_read_block(size_t size_to_read)
 		    all data from it. */
 		if (cf->size == LSP_FSIZE_UNKNOWN) {
 			cf->size = cf->seek;
+
+			/* Empty files have 0 lines. */
+			if (cf->size == 0)
+				cf->lines_count = 0;
 		}
 		lsp_file_close();
 		return 0;
@@ -2115,6 +2118,9 @@ static void lsp_file_set_size()
 	else
 		cf->size = LSP_FSIZE_UNKNOWN;
 
+	/* Empty files have 0 lines. */
+	if (cf->size == 0)
+		cf->lines_count = 0;
 out:
 	free(path);
 }
@@ -2260,6 +2266,9 @@ static regmatch_t lsp_search_find_prev_match(struct lsp_line_t **line)
 	regmatch_t match = lsp_no_match;
 	regmatch_t valid_match = lsp_no_match;
 	off_t offset;
+
+	if (*line == NULL)
+		return lsp_no_match;
 
 	do {
 		offset = 0;
@@ -2605,6 +2614,10 @@ static size_t lsp_file_pos2line(off_t pos)
 	size_t start;
 	size_t mid;
 	size_t end;
+
+	/* Empty files have no lines. */
+	if (cf->size == 0)
+		return 0;
 
 	if (pos > cf->seek) {
 		lsp_file_read_all();
@@ -5713,10 +5726,13 @@ static void lsp_workhorse()
 					lsp_toc_first_adjust();
 
 				lsp_toc_rewind(cf->toc_first->pos);
-			} else {
+			} else if (cf->size > 0) {
+				/* create TOC only for non-empty files. */
 				lsp_file_create_toc();
 				lsp_mode_set_toc();
-			}
+			} else
+				lsp_prompt = "No TOC for empty files";
+
 
 			lsp_display_page();
 			break;
@@ -5884,6 +5900,7 @@ static struct file_t *lsp_file_ctor()
 
 	new_file->regex_p = NULL;
 	new_file->current_match = lsp_no_match;
+	new_file->cmatch_x = -1;
 
 	new_file->toc = NULL;
 	new_file->toc_cursor = 0;
