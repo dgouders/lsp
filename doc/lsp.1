@@ -1,0 +1,596 @@
+.\"
+.\" lsp - list pages (or least significant pager)
+.\"
+.\" Copyright (C) 2023, Dirk Gouders
+.\"
+.\" This file is part of lsp.
+.\"
+.\" lsp is free software: you can redistribute it and/or modify it under the
+.\" terms of the GNU General Public License as published by the Free Software
+.\" Foundation, either version 2 of the License, or (at your option) any later
+.\" version.
+.\"
+.\" lsp is distributed in the hope that it will be useful, but WITHOUT ANY
+.\" WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+.\" A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+.\"
+.\" You should have received a copy of the GNU General Public License along with
+.\" lsp. If not, see <https://www.gnu.org/licenses/>.
+.\"
+.TH lsp 1 02/07/2024 0.5.0-rc1 "User commands"
+.\"--------------------------------------------------------------------
+.SH Name
+.\"--------------------------------------------------------------------
+lsp \- list pages (or least significant pager)
+.SH Synopsis
+.SY lsp
+.RI [ option\~ .\|.\|.\&]
+.RI [ file\~ .\|.\|.]
+.SY lsp
+.B \-h
+.SY lsp
+.B \-v
+.\"--------------------------------------------------------------------
+.SH Description
+.\"--------------------------------------------------------------------
+.I lsp
+is a terminal pager that assists in paging through data,
+usually text \(em no
+.MR \%more 1 ,
+no
+.MR \%less 1 .
+.P
+The given files are opened if file names are given as options.
+Otherwise
+.I lsp
+assumes input from stdin and tries to read from there.
+.P
+In addition to its ability to aid in paging through text files
+.I lsp
+has some knowledge about manual pages and offers help in
+viewing them:
+.
+.IP "\[bu] Visit references" 2.0
+Manual pages usually refer to other manual pages and
+.I lsp
+.
+allows to navigate those references and to visit them as new
+.I files
+.
+with the ability to also navigate through all opened manual
+pages or other files.
+.IP
+Here,
+.I lsp
+.
+tries to minimize frustration caused by unavailable references and
+verifies their existance before offering them as references that can
+be visited.
+.
+.IP "\[bu] Complete resizes"
+In windowing environments
+.I lsp
+does
+.I complete
+resizes when windows get resized.  This means it also reloads the
+manual page to fit the new window dimensions.
+.
+.IP "\[bu] Apropos pseudo-file"
+Search for manual pages using
+.MR apropos 1 ;
+in the current most basic form it lists all known manual pages ready
+for text search and for visiting any of those manual pages.
+.IP "\[bu] TOC mode"
+.I lsp
+has an experimental TOC mode.
+.IP
+This is a three-level folding mode trying to list only section and
+sub-section names for quick navigation in manual pages.
+.IP
+The TOC is created using naive heuristics which works well to some
+extend, but
+.B it might be
+.BR incomplete .
+Users should keep that in mind.
+.\"--------------------------------------------------------------------
+.SH Searching
+.\"--------------------------------------------------------------------
+.B lsp
+supports searches using extended regular expressions (see
+.MR regex 7 ).
+.IP \[bu]
+Initially, searches in both directions start at the top left of the
+current page.
+.IP \[bu]
+If the search pattern is changed or a search continued after other
+movement or a change between searches and navigating references
+happens with the last current match on the current page the new
+search starts from that position.
+.IP \[bu]
+Found matches are highlighted and the first one (the current match) is
+marked by a blinking curser at
+the end of the match.  \[aq]n\[aq] and \[aq]p\[aq] navigate to the
+individual matches forth and back, respectively.
+.IP \[bu]
+If a search is started
+.B lsp
+tries to place the first matching line on the middle of the screen so
+that context in both directions is visible.
+.IP
+Further matches on the same page don't cause further movement until
+the first/last line is reached.
+.IP \[bu]
+.B CTRL-l
+can be used to bring the line with the current match
+to the top of the screen.
+.IP \[bu]
+Highlighting of matches remains active when changing back to normal
+file movement.  Press
+.B ESC
+to turn off highlighting of matches.
+.\"--------------------------------------------------------------------
+.SH Toxic Input Characters
+.\"--------------------------------------------------------------------
+.B lsp
+tries to leave input as is but currently replaces carriage return
+(\[aq]\\r\[aq]) with "^M", because the original has too toxic effects
+on
+.BR lsp 's
+output.
+.P
+This will be corrected as soon as a better solution is known
+.\"--------------------------------------------------------------------
+.SH Toxic Manual Pages / lsp_cat
+.\"--------------------------------------------------------------------
+Usually,
+.B lsp
+is able to detect manual pages and their names by inspecting the first
+line of a file \(em cooperative manual pages provide their name in the
+header, twice.
+
+In real life, however, manual pages exist that don't have their names
+in the header but the name of their overall project name, for example.
+.
+.B Docker
+is such an example that made
+.B lsp
+fail here.
+
+.B lsp
+now uses the fact that at least
+.BR man-db 's
+.MR man 1
+provides the environment variable
+.B MAN_PN
+containing the name of the manual page.
+
+This is nice for cases where
+.B lsp
+is called by
+.MR man 1
+but when
+.B lsp
+opens further manual pages only the then used pager process knows
+about that environment variable but not
+.B lsp
+that only reads the data sent by that forked process.
+
+.B lsp
+now uses this bad trick to come to know names of additionally opened
+manual pages:
+.IP \[bu]
+Provide a script
+.B lsp_cat
+that injects a line containing the value of
+.B MAN_PN
+like this:
+.RS
+.IP
+.B <lsp-man-pn>groff(1)</lsp-man-pn>
+.RE
+.IP
+prior to then executing
+.MR cat 1
+to output the actual input data.
+.IP \[bu]
+.B lsp
+then provides this script
+as
+.B PAGER
+when executing
+.MR man 1 .
+.IP \[bu]
+.B lsp
+then extracts the name out of the first line of the received data
+before storing the rest as the content of the actual manual page.
+.LP
+Not very beautiful, perhaps, but it works.
+
+The drawback of this trick is that we have manual pages that are
+accessible by several names, the
+.MR printf 3
+family, for example.
+.
+With inspecting the header line,
+.B lsp
+would maintain only one file, regardless how many of those names the
+user uses to visit this manual page.
+With the described trick, thes manual pages can cause as
+many different files as names for the manual page exist to
+.BR lsp .
+
+So, better ideas are welcome.
+.\"--------------------------------------------------------------------
+.SH Options
+.\"--------------------------------------------------------------------
+All options can be given on the command line or via the environment
+variable
+.BR LSP_OPTIONS .
+.
+The short version of toggles can also be used
+as commands, e.g. the user can type
+.B -i
+.
+while paging through a file to
+toggle case sensitivity for searches.
+.
+.TP
+.B -a, --load-apropos
+.
+Create an apropos pseudo-file.
+.TP
+.B -c, --chop-lines
+.
+Toggle chopping of lines that do not fit the current screen width.
+.
+.TP
+.B -h, --help
+.
+Output help and exit.
+.
+.TP
+.B -i, --no-case
+.
+Toggle case sensitivity in searches.
+.
+.TP
+.
+.B -I, --man-case
+.
+Turn on case sensitivity for names of manual pages.
+.
+.IP
+.
+This is used for example to verify references to other manual pages.
+.
+.TP
+.
+.B -l, --log-file
+.
+Specify a path to where write debugging output.
+.
+.IP
+.
+This needs to be a template according to
+.MR mkstemp 3 :
+a string ending
+with six characters
+.IR XXXXXX .
+.TP
+.B -n, --line-numbers
+.
+Toggle visible line numbers.
+.
+.TP
+.B --no-color
+.
+Disable colored output.
+.
+.TP
+.
+.B -o, --output-file
+.
+Specify output file to duplicate all read input.
+.
+.TP
+.
+.B --reload-command
+.
+Specify command to (re)load manual pages.
+.IP
+The given string must contain exactly one
+.I %n
+and one
+.IR %s .
+.IP
+.I %n
+is a placeholder for the name of the manual page and
+.I %s
+is one for the section.
+.IP
+Default is
+.RI \[dq] man
+.IR %n.%s \[dq].
+.TP
+.B -s, --search-string
+Specify an initial search string.
+.IP
+.B lsp
+then starts with searching for that string and positions to the
+first match or displays an error message.
+.
+.TP
+.
+.B -V, --no-verify
+.
+Toggle verification of references.
+.IP
+Verification of references is an expensive procedure.
+On slow machines users might want options in that case: this one can
+be used to completely turn verification off.  This comes at the cost
+that unusable references might be presented.
+.IP
+By default verification is
+.BR on .
+.
+.TP
+.
+.B -v, --version
+Output version information of
+.B lsp
+and exit.
+.
+.TP
+.
+.B --verify-command
+.
+Specify command to verify the existance of references.
+.IP
+The given string must contain exactly one
+.I %n
+and one
+.IR %s .
+.IP
+.I %n
+is a placeholder for the name of the manual page and
+.I %s
+is one for the section.
+.IP
+Default is
+.I \[dq]man\~-w\~\[rs]\[dq]%n.%s\[rs]\[dq]\~>\~/dev/null 2>&1\[dq]
+.
+.TP
+.
+.B --verify-with-apropos
+.
+Use the entries of the pseudo-file
+.I Apropos
+for validation of references.
+.IP
+This option can speed up verification of references significantly but
+users should keep in mind that verification will then be as reliable
+as the system's manual page index is.
+.IP
+With this option, the first usage of
+.I TAB
+or
+.I Shift-TAB
+will load
+the pseudo-file
+.I Apropos
+and create valid references for each of
+its entries; all following reference actions will then be much
+faster (approx. O(m) with m being the length of the reference).
+.
+.\"--------------------------------------------------------------------
+.SH Commands
+.\"--------------------------------------------------------------------
+.
+.TP
+.
+.BR <\~ / \~>
+.br
+Move to first / last page respectively.
+.
+.TP
+.
+.BR Pg-Down\~ / \~Pg-Up
+.
+Forward/backward one page, respectively.
+.
+.TP
+.
+.BR Key-Down\~ / \~Key-Up\~ / \~Mouse-Wheel\~down\~ / \~up
+.
+Forward / backward one line, respectively.
+.TP
+.B CTRL-l
+.br
+In search mode: bring current match to top of the page.
+.
+.TP
+.
+.B ESC
+.br
+Turn off current highlighting of matches.
+.
+.TP
+.
+.BR TAB\~ / \~S-TAB
+.
+Navigate to next/previous reference respectively.
+.
+.TP
+.
+.B SPACE
+.br
+Forward one page in file.
+.
+.TP
+.B ENTER
+.br
+Depends on the active mode:
+.RS
+.IP "\[bu] In normal mode:"
+Forward one line in file.
+.
+.IP "\[bu] If previous command was \fBTAB\fR or \fBS-TAB\fR:"
+Open reference at point, i.e. call
+.I `man
+.IR <reference>' .
+.
+.IP "\[bu] In TOC-mode:"
+Go to currently selected position in file.
+.RE
+.
+.TP
+.
+.B /
+.br
+Start a forward search for regular expression.
+.
+.TP
+.
+.B ?
+.br
+Start a backward search for regular expression.
+.
+.TP
+.
+.B B
+.br
+Change buffer; choose from list.
+.
+.TP
+.
+.B a
+.br
+Create a pseudo-file with the output of
+.MR apropos 1 .
+.IP
+That pseudo-file contains short descriptions for all manual pages known
+to the system; those manual pages can also be visited with
+.BR TAB\~ /\~ S-TAB\~ and\~ ENTER\~ commands.
+.
+.TP
+.
+.B b
+.br
+Backward one page
+.
+.TP
+.
+.B c
+.br
+Close file currently paged.
+.IP
+Exits
+.B lsp
+if it was the only/last file being paged.
+.TP
+.
+.B f
+.br
+Forward one page
+.
+.TP
+.
+.B h
+.br
+Show online help with command summary.
+.
+.TP
+.
+.B m
+.br
+Open another manual page.
+.
+.TP
+.
+.B n
+.br
+Find next match in search.
+.
+.TP
+.
+.B p
+.br
+Find previous match in search.
+.
+.TP
+.
+.B q
+.br
+Depends on the active mode:
+.RS
+.IP "\[bu] In normal mode:" 4
+exit
+.BR lsp .
+.IP "\[bu] In TOC-mode:"
+switch back to normal view.
+.IP "\[bu] In help-mode:"
+close help file.
+.IP "\[bu] In file selection:"
+exit selection without selecting a file; stay at the former one.
+.RE
+.\"--------------------------------------------------------------------
+.SH Environment
+.\"--------------------------------------------------------------------
+.
+.TP
+.
+.B LSP_OPTIONS
+All command line options can also be specified using this variable.
+.
+.TP
+.
+.B LSP_OPEN / LESSOPEN
+Analogical to
+.MR less 1 ,
+.B lsp
+supports an input preprocessor but currently just the two basic forms:
+.RS
+.IP 1)
+A string with the command to invoke the preprocessor containing
+exactly one occurence of "%s" to be replaced with the file name.
+
+This command must write a filename to standard output that
+.B lsp
+can use to read the data it should offer for paging.
+.IP 2)
+Same as
+.B 1)
+but starting with a pipe symbol "|" to form an input pipe.
+
+The specified command must write to standard output to hand over the
+data for paging to
+.BR lsp .
+.RE
+.TP
+.B MAN_PN
+.br
+.B lsp
+expects
+.MR man 1
+to provide
+.B MAN_PN
+with the name of the manual page at hand.
+.
+.\"--------------------------------------------------------------------
+.SH See Also
+.\"--------------------------------------------------------------------
+.
+.MR apropos 1 ,
+.MR less 1 ,
+.MR man 1 ,
+.MR mandb 8 ,
+.MR mkstemp 3 ,
+.MR more 1 ,
+.MR pg 1
+.
+.\"--------------------------------------------------------------------
+.SH Bugs
+.\"--------------------------------------------------------------------
+.
+Report bugs at
+.I https://github.com/dgouders/lsp
