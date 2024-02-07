@@ -5721,7 +5721,7 @@ static void lsp_workhorse()
 					lsp_toc_first_adjust();
 
 				lsp_toc_rewind(cf->toc_first->pos);
-			} else if (cf->size > 0) {
+			} else if (cf->size != 0) {
 				/* create TOC only for non-empty files. */
 				lsp_file_create_toc();
 				lsp_mode_set_toc();
