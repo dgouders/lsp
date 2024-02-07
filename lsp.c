@@ -1435,7 +1435,7 @@ static void lsp_file_close()
  * fixme: Perhaps, we later need to tweak this and use pagesize or something
  *        else.
  */
-static blksize_t lsp_file_set_blksize()
+static void lsp_file_set_blksize()
 {
 	struct stat statbuf;
 
@@ -1543,7 +1543,7 @@ static void lsp_file_data_ctor(size_t size_to_read)
 /*
  * Perform an actual read(2) with error handling.
  */
-static ssize_t lsp_file_do_read(char *buffer_p, size_t size_to_read)
+static ssize_t lsp_file_do_read(unsigned char *buffer_p, size_t size_to_read)
 {
 	ssize_t nread = read(cf->fd, buffer_p, size_to_read);
 
@@ -4400,7 +4400,7 @@ static char *lsp_read_manpage_name()
 
 	int i = 0;
 	ssize_t len;
-	char c = 0;
+	unsigned char c = 0;
 
 	/* Read single bytes until we get a linefeed. */
 	while (c != '\n') {
