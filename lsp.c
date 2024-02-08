@@ -323,6 +323,12 @@ static size_t lsp_skip_bsp(const char *ptr, size_t len)
 			return 0;
 		}
 
+		if (ptr[i] == '\t') {
+			/* Binary data might contain tabs mixed with backspaces.
+			   Leave them alone. */
+			return 0;
+		}
+
 		/* Get length of possible multibyte char. */
 		ch_len = lsp_mblen(ptr + i, len - i);
 
@@ -3790,9 +3796,12 @@ static void lsp_display_page()
 			 * Try to leave backspace sequences untouched that are
 			 * not grotty's legacy output: if we hit a backspace
 			 * with ch then it is definitely no such thing.
+			 *
+			 * Binary data could give us TAB being part of a
+			 * backslash sequence -- we don't touch those.
 			 */
 			attr_t attr_orig = attr;
-			while (ch[0] != L'\b' && next_ch == L'\b') {
+			while (ch[0] != '\t' && (ch[0] != L'\b' && next_ch == L'\b')) {
 				/*
 				 * According to grotty(1) there are three
 				 * possible backspace sequences:
@@ -3812,6 +3821,7 @@ static void lsp_display_page()
 						pair = LSP_BOLD_PAIR;
 					}
 				}
+
 				line->current += ch_len + 1;
 
 				/* Convert tabs to spaces. */
