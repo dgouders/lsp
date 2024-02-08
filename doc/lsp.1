@@ -129,18 +129,57 @@ file movement.  Press
 .B ESC
 to turn off highlighting of matches.
 .\"--------------------------------------------------------------------
-.SH Toxic Input Characters
+.SH Special Input Characters / Sequences
 .\"--------------------------------------------------------------------
 .B lsp
-tries to leave input as is but currently replaces carriage return
-(\[aq]\\r\[aq]) with "^M", because the original has too toxic effects
+tries to hand over data as is to
+.MR ncurses 3
+but some data is either converted to text attributes
+or translated to some other data.
+
+This happens on all input \(em
+.B lsp
+doesn't distinguish between text and non-text input, it relies on
+a decent preprocessor.
+.
+.IP "\[bu] SGR sequences" 2.5
+.br
+SGR sequences are recognized and translated.
+
+Currently, only a limited subset is implemented mostly by looking at
+what input
+.MR git 1
+feeds
+.B lsp
+with.
+.
+.IP "\[bu] backspace sequences" 2.5
+Those are sequences according to
+.MR grotty 1
+legacy output format, providing the text attributes bold, italics and bold
+italics.
+.
+.IP "\[bu] carriage return (\[aq]\[rs]r\[aq])" 2.5
+.br
+.B lsp
+replaces carriage return
+with "^M", because the original has too toxic effects
 on
 .BR lsp 's
 output.
-.P
-This will be corrected as soon as a better solution is known
+
+This can be turned off with
+.BR --keep-cr .
+.
+.IP "\[bu] TAB (\[aq]\[rs]t\[aq])" 2.5
+.br
+TAB stops are expanded to spaces according to their horizontal
+position
+.IR x
+with a currently hardcoded maximum width of 8.
+.LP
 .\"--------------------------------------------------------------------
-.SH Toxic Manual Pages / lsp_cat
+.SH lsp_cat / Toxic Manual Pages
 .\"--------------------------------------------------------------------
 Usually,
 .B lsp

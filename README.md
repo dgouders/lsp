@@ -79,12 +79,32 @@ Searching
               normal file movement.  Press ESC to  turn  off  highlighting  of
               matches.
 
-Toxic Input Characters
-       lsp  tries  to leave input as is but currently replaces carriage return
-       ('\r') with "ˆM", because the original has too toxic effects  on  lsp’s
-       output.
+Special Input Characters / Sequences
+       lsp tries to hand over data as is to ncurses(3) but some data is either
+       converted to text attributes or translated to some other data.
 
-       This will be corrected as soon as a better solution is known
+       This  happens  on  all input — lsp doesn’t distinguish between text and
+       non-text input, it relies on a decent preprocessor.
+
+       • SGR sequences
+         SGR sequences are recognized and translated.
+
+         Currently, only a limited subset is implemented mostly by looking  at
+         what input git(1) feeds lsp with.
+
+       • backspace sequences
+         Those are sequences according to grotty(1) legacy output format, pro‐
+         viding the text attributes bold, italics and bold italics.
+
+       • carriage return ('\r')
+         lsp  replaces carriage return with "ˆM", because the original has too
+         toxic effects on lsp’s output.
+
+         This can be changed with --keep-cr.
+
+       • TAB ('\t')
+         TAB stops are expanded to spaces according to their horizontal  posi‐
+         tion x with a currently hardcoded maximum width of 8.
 
 Toxic Manual Pages / lsp_cat
        Usually, lsp is able to detect manual pages and their names by inspect‐
@@ -155,6 +175,9 @@ Options
               This  is  used  for example to verify references to other manual
               pages.
 
+       --keep-cr
+              Do not translate carriage return to "ˆM" on output.
+
        -l, --log-file
               Specify a path to where write debugging output.
 
@@ -207,7 +230,7 @@ Options
               %n is a placeholder for the name of the manual page  and  %s  is
               one for the section.
 
-              Default is "man -w \"%n.%s\" > /dev/null 2>&1"
+              Default is "man -w %n.%s > /dev/null 2>&1"
 
        --verify-with-apropos
               Use  the  entries  of  the pseudo-file Apropos for validation of
