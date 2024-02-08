@@ -2035,8 +2035,8 @@ static int lsp_open_file(const char *name)
 			lsp_debug("%s: no replacement file for \"%s\"", __func__, cf->name);
 			cf->fd = open(cf->name, 0, "r");
 		} else {
-			lsp_debug("%s: opening replacement file \"%s\"", __func__, buffer);
-			cf->rep_name = lsp_mdup(buffer, nread);
+			cf->rep_name = lsp_mdup2str(buffer, nread);
+			lsp_debug("%s: opening replacement file \"%s\"", __func__, cf->rep_name);
 			cf->fd = open(cf->rep_name, 0, "r");
 		}
 	}
