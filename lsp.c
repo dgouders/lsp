@@ -1276,14 +1276,6 @@ static struct lsp_line_t *lsp_get_line_from_here()
 		if (ch == '\n')
 			break;
 
-		/* To deactivate the bad effects of '\r' convert it to the
-		   printable characters "^M". */
-		if (ch == '\r') {
-			str[pos - 1] = '^';
-			ch = 'M';
-			continue;
-		}
-
 		ch = lsp_file_getch();
 	}
 
@@ -3669,6 +3661,11 @@ static void lsp_display_page()
 	 * Process lines until EOF or the screen is filled.
 	 */
 	while ((y < (lsp_maxy - 1))) {
+		/* Remember ongoing translation '\r' => "^M"
+		 * When a new line starts there is none.
+		 */
+		bool cr_active = false;
+
 		attr = A_NORMAL;
 		pair = LSP_DEFAULT_PAIR;
 
@@ -3914,6 +3911,26 @@ static void lsp_display_page()
 					}
 				}
 
+				/* Handle carriage return characters
+				 * Because we replace a single char '\r' by two "^M", we
+				 * need a flag to tell us we are currently doing
+				 * such a translation.
+				 * In the first round, output '^' and set the
+				 * flag and in the second round output 'M' and
+				 * turn off that flag.
+				 */
+				if (!lsp_keep_cr && (ch[0] == '\r' || cr_active)) {
+					if (cr_active) {
+						ch[0] = 'M';
+						cr_active = false;
+					} else {
+						ch[0] = '^';
+						cr_active = true;
+					}
+				}
+
+				/* All the above happened to finaly output a
+				 * single character */
 				setcchar(cchar_ch, ch, attr, pair, NULL);
 
 				mvwadd_wch(lsp_win, y, x, cchar_ch);
@@ -3961,7 +3978,9 @@ static void lsp_display_page()
 				   expansion. */
 				if (--tab_spaces == 0)
 					line->current++;
-			} else
+			} else if (cr_active == false)
+				/* Don't go ahead when we are currently
+				   translating '\r' to "^M'. */
 				line->current += ch_len;
 		}
 line_done:
@@ -6107,6 +6126,7 @@ static void lsp_process_options(int argc, char *argv[])
 		{"reload-command",	required_argument,	0, '1'},
 		{"verify-command",	required_argument,	0, '2'},
 		{"verify-with-apropos", no_argument,		0, '3'},
+		{"keep-cr",		no_argument,		0, '4'},
 		{0,			0,			0,  0 }
 	};
 
@@ -6137,6 +6157,10 @@ static void lsp_process_options(int argc, char *argv[])
 		case '3':
 			/* --verify-with-apropos */
 			lsp_verify_with_apropos = true;
+			break;
+		case '4':
+			/* --keep-cr */
+			lsp_keep_cr = true;
 			break;
 		case 'a':
 			lsp_load_apropos = true;
@@ -6305,6 +6329,8 @@ static void lsp_init()
 	lsp_verify_command = strdup("man -w %n.%s > /dev/null 2>&1");
 
 	lsp_verify_with_apropos = false;
+
+	lsp_keep_cr = false;
 
 	lsp_verify = true;
 

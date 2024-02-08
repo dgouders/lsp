@@ -495,6 +495,9 @@ char	*lsp_verify_command;
 bool	lsp_verify_with_apropos;
 bool	lsp_verify;
 
+/* Keep CR (\r) as is (true) or translate to ^M (false) */
+bool	lsp_keep_cr;
+
 /*
  * Further global variables.
  */
