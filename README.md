@@ -100,13 +100,13 @@ Special Input Characters / Sequences
          lsp  replaces carriage return with "ˆM", because the original has too
          toxic effects on lsp’s output.
 
-         This can be changed with --keep-cr.
+         This can be turned off with --keep-cr.
 
        • TAB ('\t')
          TAB stops are expanded to spaces according to their horizontal  posi‐
          tion x with a currently hardcoded maximum width of 8.
 
-Toxic Manual Pages / lsp_cat
+lsp_cat / Toxic Manual Pages
        Usually, lsp is able to detect manual pages and their names by inspect‐
        ing  the  first line of a file — cooperative manual pages provide their
        name in the header, twice.
@@ -367,5 +367,5 @@ See Also
 Bugs
        Report bugs at https://github.com/dgouders/lsp
 
-0.5.0-rc1                         02/07/2024                            lsp(1)
+0.5.0-rc2                         02/09/2024                            lsp(1)
 ```
