@@ -233,6 +233,7 @@ static void			lsp_init_cmd_input(void);
 static void			lsp_init_logfile(void);
 #endif
 static int			lsp_init_screen(void);
+static void			lsp_init_256_colors(void);
 static void			lsp_file_inject_line(const char *);
 static void			lsp_invalidate_cm_cursor(void);
 static bool			lsp_is_a_match(regmatch_t);
@@ -298,6 +299,7 @@ static regmatch_t		lsp_search_find_prev_match(struct lsp_line_t **);
 static regmatch_t		lsp_search_next(void);
 static regmatch_t		lsp_search_toc_next(void);
 static void			lsp_set_no_current_match(void);
+static int			lsp_sgr_extract_enns(const char *, long *);
 static size_t			lsp_skip_bsp(const char *, size_t);
 static size_t			lsp_skip_sgr(const char *, size_t);
 static size_t			lsp_skip_to_payload(const char *, size_t);

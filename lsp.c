@@ -383,6 +383,40 @@ static size_t lsp_get_sgr_len(const char *seq)
 }
 
 /*
+ * Extract all 'n' values out of SGR sequence.
+ *
+ * We expect a string without the leading CSI, e.g. "n1;n2;n3...m"
+ *
+ * Store the values in the given array enns and return the number of extracted
+ * values.
+ *
+ * Return -1 if we find illegal content; the status of enns should then be
+ * considered undefined.
+ */
+static int lsp_sgr_extract_enns(const char *seq, long *enns)
+{
+	char *endptr;
+	size_t i = 0;
+
+	while (1 ) {
+		enns[i] = strtol(seq, &endptr, 10);
+
+		i++;
+
+		if (endptr[0] == 'm')
+			break;
+
+		if (endptr[0] != ';')
+			return -1;
+
+		/* Skip separator. */
+		seq = endptr + 1;
+	}
+
+	return i;
+}
+
+/*
  * Decode SGR sequence to attribute and/or color pair.
  *
  * Return the length of the processed SGR sequence.
@@ -391,10 +425,10 @@ static size_t lsp_get_sgr_len(const char *seq)
  */
 static size_t lsp_decode_sgr(const char *seq, attr_t *attr, short *pair)
 {
-	char *sgr_endparam_p;
+	long enns[32];		/* Array for n-values in SGR sequence. */
+	size_t enn_count;
 	size_t sgr_len;
 	size_t i;
-	int n;
 	short sgr_fg_color;
 	short sgr_bg_color;
 
@@ -413,14 +447,18 @@ static size_t lsp_decode_sgr(const char *seq, attr_t *attr, short *pair)
 	/* Get currently active colors in pair. */
 	pair_content(*pair, &sgr_fg_color, &sgr_bg_color);
 
-	/* We start after the initial \e[ */
-	i = 2;
+	/* Extract n-values from sequence. */
+	enn_count = lsp_sgr_extract_enns(seq + 2, enns);
 
-	while (1) {
-		/* Get next parameter in sequence */
-		n = strtol(seq + i, &sgr_endparam_p, 10);
+	if (enn_count == -1) {
+		lsp_debug("%s: could not extract enns from SGR: \"%.*s\"", sgr_len, seq);
+		return (size_t)-1;
+	}
 
-		switch(n) {
+	i = 0;
+
+	while (i < enn_count) {
+		switch(enns[i]) {
 		case 0:
 			/* Reset */
 			*attr = A_NORMAL;
@@ -429,8 +467,6 @@ static size_t lsp_decode_sgr(const char *seq, attr_t *attr, short *pair)
 			break;
 		case 1:
 			*attr = A_BOLD;
-			pair_content(LSP_BOLD_PAIR,
-				     &sgr_fg_color, &sgr_bg_color);
 			break;
 		case 2:
 			*attr = A_DIM;
@@ -440,8 +476,6 @@ static size_t lsp_decode_sgr(const char *seq, attr_t *attr, short *pair)
 			break;
 		case 4:
 			*attr = A_UNDERLINE;
-			pair_content(LSP_UL_PAIR,
-				     &sgr_fg_color, &sgr_bg_color);
 			break;
 		case 5:
 		case 6:
@@ -449,8 +483,6 @@ static size_t lsp_decode_sgr(const char *seq, attr_t *attr, short *pair)
 			break;
 		case 7:
 			*attr = A_REVERSE;
-			pair_content(LSP_REVERSE_PAIR,
-				     &sgr_fg_color, &sgr_bg_color);
 			break;
 		case 8:
 			*attr = A_INVIS;
@@ -460,17 +492,12 @@ static size_t lsp_decode_sgr(const char *seq, attr_t *attr, short *pair)
 			   handled by the terminal... */
 		case 21:
 			*attr = A_UNDERLINE;
-			pair_content(LSP_UL_PAIR, &sgr_fg_color, &sgr_bg_color);
 			break;
 		case 22:
 			*attr &= ~(A_BOLD | A_DIM);
-			sgr_fg_color = lsp_fg_color_default;
-			sgr_bg_color = lsp_bg_color_default;
 			break;
 		case 24:
 			*attr &= ~A_UNDERLINE;
-			sgr_fg_color = lsp_fg_color_default;
-			sgr_bg_color = lsp_bg_color_default;
 			break;
 		case 30:
 			/* fg black */
@@ -503,6 +530,16 @@ static size_t lsp_decode_sgr(const char *seq, attr_t *attr, short *pair)
 		case 37:
 			/* fg white */
 			sgr_fg_color = COLOR_WHITE;
+			break;
+		case 38:
+			/* fg-color in 3rd enn */
+			if (enns[i + 1] != 5) {
+				/* We only support 8-bit colors. */
+				i +=2;
+				break;
+			}
+			sgr_fg_color = enns[i + 2];
+			i += 2;
 			break;
 		case 39:
 			/* fg default */
@@ -539,6 +576,16 @@ static size_t lsp_decode_sgr(const char *seq, attr_t *attr, short *pair)
 		case 47:
 			/* bg white */
 			sgr_bg_color = COLOR_WHITE;
+			break;
+		case 48:
+			/* bg color in 3rd enn */
+			if (enns[i + 1] != 5) {
+				/* We only support 8-bit colors. */
+				i +=2;
+				break;
+			}
+			sgr_bg_color = enns[i + 2];
+			i += 2;
 			break;
 		case 49:
 			/* bg default */
@@ -610,16 +657,13 @@ static size_t lsp_decode_sgr(const char *seq, attr_t *attr, short *pair)
 			break;
 		default:
 			lsp_debug("%s: currently unhandled SGR parameter %ld",
-				  __func__, n);
+				  __func__, enns[i]);
 		} /* switch() */
 
-		if (*sgr_endparam_p == 'm') {
-			*pair = lsp_get_color_pair(sgr_fg_color, sgr_bg_color);
-			break;
-		}
-
-		i += (sgr_endparam_p + 1) - (seq + i);
+		i++;
 	}
+
+	*pair = lsp_get_color_pair(sgr_fg_color, sgr_bg_color);
 
 	return sgr_len;
 }
@@ -638,6 +682,11 @@ static short lsp_get_color_pair(short fg, short bg)
 
 		if (pair_fg == fg && pair_bg == bg)
 			return pair;
+	}
+
+	if (lsp_next_pair == COLOR_PAIRS) {
+		lsp_prompt = "We are out of color pairs.";
+		return 0;	/* Return default pair as failover. */
 	}
 
 	/* No matching pair yet -> create a new one. */
@@ -2152,6 +2201,45 @@ static void lsp_file_init_ring()
 }
 
 /*
+ * Initialize the first 256 colors that we use when decoding SGR
+ * sequences.  The first 16 we take as is and the following are the colors of
+ * the 6x6x6 cube and 24 nuances of grayscale.
+ *
+ * All of this was looked up at:
+ *	https://en.wikipedia.org/wiki/ANSI_escape_code#8-bit
+ */
+static void lsp_init_256_colors()
+{
+	int i;
+	int cube_pos;
+	short cube6_steps[6] = {0, 370, 527, 684, 840, 1000};
+	short grayscale_start = 0x08;
+
+	/* Init 6x6x6 cube colors. */
+	int r, g, b;
+
+	for (r = 0; r < 6; r++) {
+		for (g = 0; g < 6; g++) {
+			for (b = 0; b < 6; b++) {
+				cube_pos = 16 + 36 * r + 6 * g + b;
+
+				init_color(cube_pos,
+					   cube6_steps[r],
+					   cube6_steps[g],
+					   cube6_steps[b]);
+			}
+		}
+	}
+
+	/* And 24 grayscale colors. */
+	for (i = 0; i < 24; i++) {
+		short c = grayscale_start + i * 41;
+		assert(c < 1000);
+		init_color(232 + i, c, c, c);
+	}
+}
+
+/*
  * ncurses initialization
  */
 static int lsp_init_screen()
@@ -2185,6 +2273,8 @@ static int lsp_init_screen()
 		int ret = init_color(COLOR_WHITE, 909, 909, 909);
 		if (ret == ERR)
 			lsp_error("%s: Could not change color.", __func__);
+
+		lsp_init_256_colors();
 	}
 
 	cbreak();
