@@ -367,5 +367,5 @@ See Also
 Bugs
        Report bugs at https://github.com/dgouders/lsp
 
-0.5.0-rc2                         02/09/2024                            lsp(1)
+0.5.0-rc3                         02/11/2024                            lsp(1)
 ```
