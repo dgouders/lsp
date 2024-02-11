@@ -1317,8 +1317,8 @@ static size_t lsp_normalize_count(const char *raw, size_t raw_len, size_t length
 		return 0;
 
 	if (length > raw_len)
-		lsp_error("%s: length %ld > raw_len %ld raw: \"%s\"",
-			  __func__, length, raw_len, raw);
+		lsp_error("%s: length %ld > raw_len %ld raw: \"%.*s\"",
+			  __func__, length, raw_len, raw_len, raw);
 
 	/* Process the data ignoring <char>\b sequences and SGR sequences. */
 	for (i = 0, nlen = 0; nlen < length; i += ch_len) {
@@ -5013,7 +5013,7 @@ static char *lsp_cmd_select_file()
 			/* Remove the final newline '\n'.*/
 			line->len--;
 
-			lsp_debug("%s: selected file %s", __func__, line->raw);
+			lsp_debug("%s: selected file %.*s", __func__, line->len, line->raw);
 
 			/* The name *stdin* is a generated one that needs to be
 			   converted. */
