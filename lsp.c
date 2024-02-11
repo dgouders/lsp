@@ -1607,8 +1607,19 @@ static ssize_t lsp_file_do_read(unsigned char *buffer_p, size_t size_to_read)
 	}
 
 	/* Duplicate input to file given with -o */
-	if (lsp_ofile > 0)
-		write(lsp_ofile, buffer_p, nread);
+	if (lsp_ofile > 0) {
+		ssize_t n = 0;
+
+		while (n < nread) {
+			ssize_t i;
+			i = write(lsp_ofile, buffer_p + n, nread - n);
+
+			if (i == -1)
+				lsp_error("%s: write(2): %s", __func__, strerror(errno));
+
+			n += i;
+		}
+	}
 
 	if (nread < size_to_read)
 		lsp_debug("%s, pos %ld: read %ld bytes instead of %ld.",
