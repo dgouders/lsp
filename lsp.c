@@ -4714,56 +4714,6 @@ static void lsp_cmd_resize()
 }
 
 /*
- * Count all the words inside the section of a manual page.
- *
- * - Move backward until we reach a section header or the beginning of the
- *   file.
- *
- * - Then, move forward and count all words in the following lines until we
- *   reach the next section header or EOF.
- */
-static size_t lsp_man_count_words_in_section()
-{
-	struct lsp_line_t *line;
-	size_t wcnt = 0;
-
-	lsp_goto_bol();
-
-	/*
-	 * Find section header
-	 */
-	while (1) {
-		char ch;
-		ch = lsp_file_getch();
-		if (!isspace(ch))
-			break;
-		lsp_file_set_prev_line();
-	}
-
-	line = lsp_get_this_line();
-
-	/*
-	 * Count words in all lines until we reach EOF or the next section
-	 * header.
-	 */
-	while (1) {
-		lsp_line_dtor(line);
-		line = lsp_get_line_from_here();
-
-		if (!line)
-			break;
-
-		if (!(isspace(line->raw[0])))
-			break;
-
-		wcnt += lsp_line_count_words(line);
-	}
-
-	lsp_line_dtor(line);
-	return wcnt;
-}
-
-/*
  * Return the number of words in the normalized part of the given line.
  */
 static size_t lsp_line_count_words(struct lsp_line_t *line)
