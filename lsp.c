@@ -756,24 +756,31 @@ static void lsp_file_create_toc()
 	while (line) {
 		/* Level 0: all lines with other than space as the
 		   first character. */
-		if (line->normalized[0] != ' ' && line->normalized[0] != '\n')
+		if (line->nlen > 0 &&
+		    line->normalized[0] != ' ' &&
+		    line->normalized[0] != '\t' &&
+		    line->normalized[0] != '{' &&
+		    line->normalized[0] != '}' &&
+		    line->normalized[0] != '\n')
 			lsp_file_toc_add(line, 0);
 
 		/* Level 1: all lines that start with three spaces. */
-		if (!strncmp(line->normalized, "   ", 3) &&
+		if (line->nlen > 3 &&
+		    LSP_STRN_EQ(line->normalized, "   ", 3) &&
 		    line->normalized[3] != ' ')
 			lsp_file_toc_add(line, 1);
 
 		/* Level 2: all lines starting with seven spaces and
 		   their following line with indentation of
 		   at least eleven spaces. */
-		if (!strncmp(line->normalized, "       ", 7) &&
+		if (line->nlen > 11 &&
+		    LSP_STRN_EQ(line->normalized, "       ", 7) &&
 		    line->normalized[7] != ' ') {
 
 			lsp_line_dtor(line);
 			line = lsp_get_this_line();
 
-			if (!strncmp(line->normalized, "           ", 11)) {
+			if (LSP_STRN_EQ(line->normalized, "           ", 11)) {
 				lsp_line_dtor(line);
 				lsp_file_set_prev_line();
 				line = lsp_file_get_prev_line();
