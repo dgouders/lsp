@@ -1487,9 +1487,13 @@ static void lsp_file_close()
  */
 static void lsp_file_set_blksize()
 {
+	int ret;
 	struct stat statbuf;
 
-	fstat(cf->fd, &statbuf);
+	ret = fstat(cf->fd, &statbuf);
+
+	if (ret == -1)
+		lsp_error("%s: fstat(2): %s", __func__, strerror(errno));
 
 	cf->blksize = statbuf.st_blksize;
 }
@@ -1945,12 +1949,13 @@ static void lsp_file_init_stdin()
 	lsp_file_add("", 0);
 
 	cf->size = LSP_FSIZE_UNKNOWN;
-	lsp_file_set_blksize();
 
 	/* Move stdin to something > 2 and and then use the controlling terminal
 	 * as the one we use for the user to communicate with us. */
 	cf->fd = dup(STDIN_FILENO);
 	close(STDIN_FILENO);
+
+	lsp_file_set_blksize();
 
 	if (cf->fd <= 2)
 		lsp_debug("%s: file descriptor did not become > 2.", __func__);
