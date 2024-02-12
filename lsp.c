@@ -387,18 +387,21 @@ static size_t lsp_get_sgr_len(const char *seq)
  *
  * We expect a string without the leading CSI, e.g. "n1;n2;n3...m"
  *
- * Store the values in the given array enns and return the number of extracted
- * values.
+ * Store the values in the given array enns of size size and return the number
+ * of extracted values.
  *
  * Return -1 if we find illegal content; the status of enns should then be
  * considered undefined.
  */
-static int lsp_sgr_extract_enns(const char *seq, long *enns)
+static int lsp_sgr_extract_enns(const char *seq, long *enns, size_t size)
 {
 	char *endptr;
 	size_t i = 0;
 
 	while (1 ) {
+		if (i >= size)
+			return -1;
+
 		enns[i] = strtol(seq, &endptr, 10);
 
 		i++;
@@ -448,7 +451,7 @@ static size_t lsp_decode_sgr(const char *seq, attr_t *attr, short *pair)
 	pair_content(*pair, &sgr_fg_color, &sgr_bg_color);
 
 	/* Extract n-values from sequence. */
-	enn_count = lsp_sgr_extract_enns(seq + 2, enns);
+	enn_count = lsp_sgr_extract_enns(seq + 2, enns, 32);
 
 	if (enn_count == -1) {
 		lsp_debug("%s: could not extract enns from SGR: \"%.*s\"", sgr_len, seq);
