@@ -298,6 +298,7 @@ static regmatch_t		lsp_search_file_next(void);
 static regmatch_t		lsp_search_find_prev_match(struct lsp_line_t **);
 static regmatch_t		lsp_search_next(void);
 static regmatch_t		lsp_search_toc_next(void);
+static void			lsp_set_manpager(void);
 static void			lsp_set_no_current_match(void);
 static int			lsp_sgr_extract_enns(const char *, long *);
 static size_t			lsp_skip_bsp(const char *, size_t);

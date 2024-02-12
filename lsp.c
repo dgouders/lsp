@@ -4574,6 +4574,21 @@ static char *lsp_read_manpage_name()
 	return ret;
 }
 
+/*
+ * Set appropriate environment variable to tell man(1) about the pager
+ * to use.
+ *
+ * This function is usually called by a child before executing man(1) to send
+ * the parent process a manual page.
+ */
+static void lsp_set_manpager()
+{
+	if (getenv("MANPAGER") != NULL)
+		putenv("MANPAGER=lsp_cat");
+	else
+		putenv("PAGER=lsp_cat");
+}
+
 static void lsp_exec_man()
 {
 	/*
@@ -4593,7 +4608,7 @@ static void lsp_exec_man()
 		lsp_error("%s", strerror(errno));
 
 	if (pid == 0) {		/* child process */
-		putenv("PAGER=lsp_cat");
+		lsp_set_manpager();
 
 		char **e_argv = lsp_create_argv(lsp_reload_command, cf->name);
 
