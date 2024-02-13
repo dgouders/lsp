@@ -1085,10 +1085,10 @@ static struct lsp_line_t *lsp_line_ctor()
 	line->current = NULL;
 	line->normalized = NULL;
 
-	line->n_scr_line = 1;
-	line->scr_line = lsp_malloc(sizeof(line->scr_line[0]));
-	line->scr_line[0] = 0;	/* The beginning of a line also is the
-				 * beginning of a screen line. */
+	line->n_wlines = 1;
+	line->wlines = lsp_malloc(sizeof(line->wlines[0]));
+	line->wlines[0] = 0;	/* The beginning of a line also is the
+				 * beginning of a wline. */
 
 	return line;
 }
@@ -1103,7 +1103,7 @@ static void lsp_line_dtor(struct lsp_line_t *line)
 
 	free(line->raw);
 	free(line->normalized);
-	free(line->scr_line);
+	free(line->wlines);
 	free(line);
 }
 
@@ -1229,46 +1229,46 @@ static struct lsp_line_t *lsp_get_this_line() {
 }
 
 /*
- * One line might be longer than the current screen width and thus consist of
- * several lines on the screen.
+ * One line might be longer than the current window width and thus consist of
+ * several lines in the window.
  *
- * For the current screen width: add pointers to screen lines for the given
+ * For the current window width: add pointers to window lines for the given
  * line.
  *
  * Caution, the line could contain tabs that would make the expanded line much
  * longer than line->len pretends!
  */
-static void lsp_line_add_screen_lines(struct lsp_line_t *line)
+static void lsp_line_add_wlines(struct lsp_line_t *line)
 {
 	size_t i = 0;		  /* current byte in the line */
-	size_t current_len = 0;	  /* current characters in one screen line */
-	size_t scrlp = 0;	  /* screen line pointer (index) */
-	char new_screen_line = 0; /* to identify parts containing just a newline */
+	size_t current_len = 0;	  /* current characters in one window line */
+	size_t wli = 0;		  /* wline index */
+	char new_wline = 0;	  /* to identify parts containing just a newline */
 
 	while (i < line->len) {
 		if (current_len == lsp_maxx) {
-			/* Add onother screen line. */
-			scrlp += 1;
-			line->n_scr_line += 1;
-			line->scr_line = lsp_realloc(line->scr_line, line->n_scr_line * sizeof(line->scr_line[0]));
-			line->scr_line[scrlp] = i;
+			/* Add another window line. */
+			wli += 1;
+			line->n_wlines += 1;
+			line->wlines = lsp_realloc(line->wlines, line->n_wlines * sizeof(line->wlines[0]));
+			line->wlines[wli] = i;
 			current_len = 0;
 
-			new_screen_line = 1;
+			new_wline = 1;
 		}
 
 		/* Ignore possible SGR sequences */
 		i += lsp_skip_sgr(line->raw + i, line->len - i);
 
-		/* If we are in a new screen line and it consists of just a
+		/* If we are in a new window line and it consists of just a
 		   newline (plus possible SGR sequences) we don't count this
 		   line and are done. */
-		if (new_screen_line && line->raw[i] == '\n') {
-			line->n_scr_line -= 1;
+		if (new_wline && line->raw[i] == '\n') {
+			line->n_wlines -= 1;
 			return;
 		}
 
-		new_screen_line = 0;
+		new_wline = 0;
 
 		i += lsp_skip_to_payload(line->raw + i, line->len - i);
 
@@ -3774,7 +3774,7 @@ static void lsp_display_page()
 	lsp_invalidate_cm_cursor();
 
 	/*
-	 * Process lines until EOF or the screen is filled.
+	 * Process lines until EOF or the window is filled.
 	 */
 	while ((y < (lsp_maxy - 1))) {
 		/* Remember ongoing translation '\r' => "^M"
@@ -3998,7 +3998,7 @@ static void lsp_display_page()
 			 */
 			if (line_x >= lsp_shift || ch[0] == '\n') {
 				/* Chop the line if we reach the width of the
-				   screen. */
+				   window. */
 				if (lsp_chop_lines && x == lsp_maxx - 1) {
 					if (next_ch != '\n')
 						ch[0] = '>';
@@ -4111,7 +4111,7 @@ line_done:
 		}
 	}
 
-	/* Fill the remainder of the screen with empty lines */
+	/* Fill the remainder of the window with empty lines */
 	ch[0] = L'\n';
 	setcchar(cchar_ch, ch, attr, pair, NULL);
 
@@ -4133,11 +4133,11 @@ line_done:
 }
 
 /*
- * In the given "physical" line, forward one screen line.
+ * In the given "physical" line, forward one window line.
  *
  * Finally, adjust offset of the remaining line in the input file.
  */
-static void lsp_line_fw_screen_line(struct lsp_line_t *line)
+static void lsp_line_fw_wline(struct lsp_line_t *line)
 {
 	int i = 0;
 	int n = 0;
@@ -4168,7 +4168,7 @@ static void lsp_line_fw_screen_line(struct lsp_line_t *line)
 		}
 	}
 
-	/* We consumed i bytes from line for one screen line.  Remove them.
+	/* We consumed i bytes from line for one window line.  Remove them.
 	   We use memmove(), because the whole allocated memory gets free()'d, later. */
 	int raw_len = lsp_normalize_count(line->raw, line->len, i);
 	line->pos += raw_len;
@@ -4180,22 +4180,22 @@ static void lsp_line_fw_screen_line(struct lsp_line_t *line)
 }
 
 /*
- * Move forward n lines on the screen.
- * Screen lines are at minimum the length of a "physical" line (the bytes
+ * Move forward n lines in the window.
+ * Window lines are at minimum the length of a "physical" line (the bytes
  * between thwo '\n' characters), if the latter is shorter than the width of the
- * screen.  In cases where "physical" lines are longer than the screen width,
- * they are divided into parts that fit the screen width.
+ * window.  In cases where "physical" lines are longer than the window width,
+ * they are divided into parts that fit the window width.
  *
  * So: from the current position, get consecutive "physical" lines, divide them if
  *     necessary and count until n is reached.  We need to ignore control
  *     characters to get net lengths.  Sounds like an understandable task...
  *
  * Not so obvious: the important part this function does is positioning the
- * current file to the target screen line by calling
+ * current file to the target window line by calling
  *
  *			lsp_file_set_pos(line->pos);
  */
-static void lsp_screen_line_fw(int n)
+static void lsp_wline_fw(int n)
 {
 	struct lsp_line_t *line = NULL;
 
@@ -4212,8 +4212,8 @@ static void lsp_screen_line_fw(int n)
 		}
 
 		while (n && line->len > 1) {
-			/* Forward one screen width in the line */
-			lsp_line_fw_screen_line(line);
+			/* Forward one window width in the line */
+			lsp_line_fw_wline(line);
 			n--;
 
 			/* We're done with the line if only a linefeed is left. */
@@ -4249,8 +4249,8 @@ static void lsp_cmd_forward(int n)
 				i++;
 		}
 	} else
-		/* read forward n screen lines */
-		lsp_screen_line_fw(n);
+		/* read forward n window lines */
+		lsp_wline_fw(n);
 
 }
 
@@ -4265,17 +4265,17 @@ static void lsp_cmd_backward(int n)
 	if (lsp_chop_lines != 0)
 		lsp_file_backward(n);
 	else
-		lsp_screen_line_bw(n);
+		lsp_wline_bw(n);
 }
 
 /*
- * Move backward in file using screen lines.
+ * Move backward in file using window lines.
  * Move n lines or one page if n == 0;
  *
  * This function must be called with the current position set to the top of the
- * screen (i.e. cf->page_first).
+ * window (i.e. cf->page_first).
  */
-static void lsp_screen_line_bw(int n)
+static void lsp_wline_bw(int n)
 {
 	if (lsp_pos <= 0)
 		return;
@@ -4285,8 +4285,8 @@ static void lsp_screen_line_bw(int n)
 		n = lsp_maxy - 1;
 
 	/*
-	 * Get the current top line of the screen and position to the
-	 * screen-line in it where the current page starts.
+	 * Get the current top line of the window and position to the
+	 * window line in it where the current page starts.
 	 */
 	struct lsp_line_t *line = lsp_get_this_line();
 
@@ -4296,17 +4296,17 @@ static void lsp_screen_line_bw(int n)
 	 */
 	lsp_file_set_pos(line->pos);
 
-	lsp_line_add_screen_lines(line);
+	lsp_line_add_wlines(line);
 
-	size_t screen_line = 0;
+	size_t wline = 0;
 
 	while (1) {
-		if (line->pos + line->scr_line[screen_line] == cf->page_first)
+		if (line->pos + line->wlines[wline] == cf->page_first)
 			break;
 
-		screen_line++;
+		wline++;
 
-		if (screen_line == line->n_scr_line)
+		if (wline == line->n_wlines)
 			lsp_error("Cannot find start of current page.");
 	}
 
@@ -4314,16 +4314,16 @@ static void lsp_screen_line_bw(int n)
 	 * Set file position and return, if backward movement can be done inside
 	 * the current line.
 	 */
-	if (n <= screen_line) {
-		lsp_file_set_pos(line->pos + line->scr_line[screen_line - n]);
+	if (n <= wline) {
+		lsp_file_set_pos(line->pos + line->wlines[wline - n]);
 		lsp_line_dtor(line);
 		return;
 	}
 
-	n -= screen_line;
+	n -= wline;
 
 	/*
-	 * Go backward in screen-line steps in the current line until count
+	 * Go backward in window line steps in the current line until count
 	 * reaches n.
 	 * Get previous lines if we reach the beginning of current lines.
 	 */
@@ -4338,18 +4338,18 @@ static void lsp_screen_line_bw(int n)
 		line = lsp_get_this_line();
 		lsp_file_set_pos(line->pos);
 
-		lsp_line_add_screen_lines(line);
+		lsp_line_add_wlines(line);
 
 		/*
 		 * If movement will end in this line, position to that offset in
 		 * the line and return.
 		 */
-		if (n <= line->n_scr_line) {
-			screen_line = line->n_scr_line - n;
-			lsp_file_set_pos(line->pos + line->scr_line[screen_line]);
+		if (n <= line->n_wlines) {
+			wline = line->n_wlines - n;
+			lsp_file_set_pos(line->pos + line->wlines[wline]);
 			break;
 		}
-		n -= line->n_scr_line;
+		n -= line->n_wlines;
 	}
 
 	lsp_line_dtor(line);
@@ -5136,7 +5136,7 @@ static char *lsp_cmd_select_file()
 
 		case KEY_UP:
 			/* Decrement line number if we are not already
-			   at the top of the screen. */
+			   at the top of the window. */
 			if (line_no) {
 				mvwchgat(lsp_win, line_no, 0, -1, A_NORMAL, LSP_DEFAULT_PAIR, NULL);
 				line_no--;
@@ -5338,7 +5338,7 @@ out:
 }
 
 /*
- * Create status line at the bottom of the screen.
+ * Create status line at the bottom of the window.
  */
 static void lsp_create_status_line()
 {

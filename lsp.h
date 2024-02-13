@@ -79,8 +79,8 @@ struct toc_node_t {
  *       -- null-terminators for .raw and .normalized would be meaningless and
  *       actually just complicate things.
  *
- * Lines might be longer than the screen width.  So, we also maintain pointers
- * to "screen-lines".  Currently, this overhead just makes scrolling backwards
+ * Lines might be longer than the window width.  So, we also maintain pointers
+ * to "wlines".  Currently, this overhead just makes scrolling backwards
  * simpler.
  */
 struct lsp_line_t {
@@ -99,9 +99,9 @@ struct lsp_line_t {
 	size_t nlen;		/* length of normalized */
 	char *normalized;	/* normalized content */
 
-	size_t n_scr_line;	/* number of screen lines */
-	off_t *scr_line;	/* pointers to offsets in raw that
-				 * correspond to lines on the screen */
+	size_t n_wlines;	/* number of window lines */
+	off_t *wlines;   	/* pointers to offsets in raw that
+				 * correspond to lines in the window */
 };
 
 /*
@@ -240,13 +240,13 @@ static bool			lsp_is_a_match(regmatch_t);
 static bool			lsp_is_at_bol(void);
 static bool			lsp_is_no_match(regmatch_t);
 static bool			lsp_is_sgr_sequence(const char *);
-static void			lsp_line_add_screen_lines(struct lsp_line_t *);
+static void			lsp_line_add_wlines(struct lsp_line_t *);
 static size_t			lsp_line_count_words(struct lsp_line_t *);
 static struct lsp_line_t *	lsp_line_ctor(void);
 static void			lsp_line_cut_tail(struct lsp_line_t *, off_t);
 static void			lsp_line_dtor(struct lsp_line_t *);
 static int			lsp_line_handle_leading_sgr(attr_t *, short *);
-static void			lsp_line_fw_screen_line(struct lsp_line_t *);
+static void			lsp_line_fw_wline(struct lsp_line_t *);
 static size_t			lsp_line_get_matches(const struct lsp_line_t *, regmatch_t **);
 static void			lsp_lines_add(off_t);
 static void *			lsp_malloc(size_t);
@@ -288,8 +288,8 @@ static void			lsp_process_env_open(void);
 static char *			lsp_read_manpage_name(void);
 static void *			lsp_realloc(void *, size_t);
 static bool			lsp_ref_is_valid(struct gref_t *);
-static void			lsp_screen_line_bw(int);
-static void			lsp_screen_line_fw(int);
+static void			lsp_wline_bw(int);
+static void			lsp_wline_fw(int);
 static void			lsp_search_align_page_to_match(void);
 static void			lsp_search_align_toc_to_match(void);
 static void			lsp_search_align_to_match(void);
