@@ -1229,6 +1229,24 @@ static struct lsp_line_t *lsp_get_this_line() {
 }
 
 /*
+ * If not already there or if the existing one has a different width:
+ *
+ * Create a hidden window that we use to fill its top line
+ * to come to know where in a "physical" line lines in the window start.
+ */
+static void lsp_init_hwin()
+{
+	if (lsp_hwin == NULL || lsp_hwin_cols != lsp_maxx + 1) {
+		if (lsp_hwin != NULL)
+			delwin(lsp_hwin);
+		lsp_hwin = newwin(2, lsp_maxx + 1, 0, 0);
+		lsp_hwin_cols = lsp_maxx + 1;
+	}
+
+	wmove(lsp_hwin, 0, 0);
+}
+
+/*
  * One line might be longer than the current window width and thus consist of
  * several lines in the window.
  *
@@ -1240,25 +1258,34 @@ static struct lsp_line_t *lsp_get_this_line() {
  */
 static void lsp_line_add_wlines(struct lsp_line_t *line)
 {
-	size_t i = 0;		  /* current byte in the line */
-	size_t current_len = 0;	  /* current characters in one window line */
-	size_t wli = 0;		  /* wline index */
-	char new_wline = 0;	  /* to identify parts containing just a newline */
+	wchar_t ch[2] = { L'\0', L'\0' };
+	/* Complex char for cursesw routines. */
+	cchar_t cchar_ch[2];
+
+	int row = 0;
+	int col = 0;
+
+	size_t i = 0;		/* current byte in the line */
+	size_t current_col = 0;	/* current column in one window line */
+	size_t wli = 0;		/* wline index */
+	char new_wline = 0;	/* to identify parts containing just a newline */
+
+	lsp_init_hwin();	/* Initialize hidden window. */
 
 	while (i < line->len) {
-		if (current_len == lsp_maxx) {
+		if (current_col >= lsp_maxx) {
 			/* Add another window line. */
 			wli += 1;
 			line->n_wlines += 1;
 			line->wlines = lsp_realloc(line->wlines, line->n_wlines * sizeof(line->wlines[0]));
 			line->wlines[wli] = i;
-			current_len = 0;
+			current_col = 0;
 
 			new_wline = 1;
 		}
 
-		/* Ignore possible SGR sequences */
-		i += lsp_skip_sgr(line->raw + i, line->len - i);
+		/* Ignore possible in-band attributes. */
+		i += lsp_skip_to_payload(line->raw + i, line->len - i);
 
 		/* If we are in a new window line and it consists of just a
 		   newline (plus possible SGR sequences) we don't count this
@@ -1270,17 +1297,31 @@ static void lsp_line_add_wlines(struct lsp_line_t *line)
 
 		new_wline = 0;
 
-		i += lsp_skip_to_payload(line->raw + i, line->len - i);
+		/* TABs we just expand and count. */
+		if (line->raw[i] == '\t') {
+			current_col += lsp_expand_tab(current_col);
+			i++;
+			continue;
+		}
 
 		/* Proceed with next (possibly multibyte) character */
-		size_t ch_len = lsp_mblen(line->raw + i, line->len - i);
+		i += lsp_mbtowc(ch, line->raw + i, line->len - i);
 
-		if (line->raw[i] == '\t') {
-			current_len += lsp_expand_tab(current_len);
-		} else
-			current_len += 1;
+		/*
+		 * Output the char to hidden window and after that check the new
+		 * column.  If it exceeds the window width the line was
+		 * filled and the next character starts a new window line.
+		 */
+		setcchar(cchar_ch, ch, A_NORMAL, LSP_DEFAULT_PAIR, NULL);
+		wadd_wch(lsp_hwin, cchar_ch);
+		getyx(lsp_hwin, row, col);
 
-		i += ch_len;
+		if (col >= lsp_maxx || row > 0) {
+			col = 0;
+			row = 0;
+			wmove(lsp_hwin, row, col);
+			current_col = lsp_maxx;
+		}
 	}
 
 	return;
@@ -1794,6 +1835,9 @@ static void lsp_file_add_block()
 static int lsp_error(const char *format, ...)
 {
 	va_list ap;
+
+	if (lsp_hwin != NULL)
+		delwin(lsp_hwin);
 
 	/* Check if curses has been initialized and do cleanup */
 	if (isendwin() == FALSE)
@@ -4301,6 +4345,8 @@ static void lsp_wline_bw(int n)
 	size_t wline = 0;
 
 	while (1) {
+		lsp_debug("%s: searching for wline bol at %ld", __func__, cf->page_first - line->pos);
+
 		if (line->pos + line->wlines[wline] == cf->page_first)
 			break;
 
@@ -6329,6 +6375,9 @@ static void lsp_finish()
 
 	lsp_grefs_dtor();
 
+	if (lsp_hwin != NULL)
+		delwin(lsp_hwin);
+
 	if (isendwin() == FALSE)
 		endwin();
 
@@ -6418,6 +6467,8 @@ static void lsp_init()
 	lsp_htable_entries = 100000;
 	lsp_grefs_count = 0;
 
+	lsp_hwin = NULL;
+	lsp_hwin_cols = -1;
 }
 
 int main(int argc, char *argv[])
