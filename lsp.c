@@ -3820,7 +3820,7 @@ static void lsp_display_page()
 	/*
 	 * Process lines until EOF or the window is filled.
 	 */
-	while ((y < (lsp_maxy - 1))) {
+	while (y < (lsp_maxy - 1)) {
 		/* Remember ongoing translation '\r' => "^M"
 		 * When a new line starts there is none.
 		 */
@@ -3868,8 +3868,13 @@ static void lsp_display_page()
 		/* Remember if we are currently inside a search match. */
 		int match_active = 0;
 
-		/* Output our interpretation of the line to ncurses window. */
-		while (lindex < line->len) {
+		/*
+		 * Output our interpretation of the line to ncurses window.
+		 *
+		 * Caution: a line could be much longer than the width of the
+		 *          window and thus fill the remainder of the window.
+		 */
+		while ((lindex < line->len) && (y < (lsp_maxy - 1))) {
 			if (lsp_mode_is_toc() && top_line == (off_t)-1)
 				top_line = line->pos;
 
