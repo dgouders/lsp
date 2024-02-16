@@ -1482,8 +1482,8 @@ static char *lsp_normalize(const char *raw, size_t raw_len, size_t *n_length)
 
 	/* ...or error out if our heuristics failed. */
 	if (raw_len < nlen)
-		lsp_error("Allocated only %ld bytes for data of %ld bytes",
-			  raw_len, nlen);
+		lsp_error("%s: Allocated only %ld bytes for data of %ld bytes",
+			  __func__, raw_len, nlen);
 
 	if (n_length != NULL)
 		*n_length = nlen;
@@ -1978,7 +1978,7 @@ static void lsp_open_cterm()
 		lsp_error("%s: %s: %s", __func__, cterm, strerror(errno));
 
 	if (in_fd != STDIN_FILENO)
-		lsp_error("TTY input fd (%d) != STDIN_FILENO.", in_fd);
+		lsp_error("%s: TTY input fd (%d) != STDIN_FILENO.", __func__, in_fd);
 }
 
 /*
@@ -2199,7 +2199,7 @@ static void lsp_file_set_size()
 	char *path;
 
 	if (fstat(cf->fd, &statbuf) == -1)
-		lsp_error("%s: %s", cf->name, strerror(errno));
+		lsp_error("fstat(%s): %s", cf->name, strerror(errno));
 
 	if (!(S_ISREG(statbuf.st_mode) || S_ISFIFO(statbuf.st_mode)))
 		lsp_error("%s: %s: unsupported file type.",
@@ -2258,7 +2258,7 @@ static void lsp_file_init_ring()
 		lsp_open_file(cf->name);
 
 		if (cf->fd == -1)
-			lsp_error("%s: %s", cf->name, strerror(errno));
+			lsp_error("%s: %s: %s", __func__, cf->name, strerror(errno));
 
 		lsp_file_set_size();
 
@@ -3058,7 +3058,7 @@ static void lsp_cmd_search(bool get_string)
 	if (get_string) {
 		/* Read search string */
 		if (wmove(lsp_win, lsp_maxy - 1, 0) == ERR)
-			lsp_error("wmove failed.");
+			lsp_error("%s: wmove failed.", __func__);
 		wattr_set(lsp_win, A_NORMAL, LSP_DEFAULT_PAIR, NULL);
 
 		if (lsp_search_direction == LSP_FW)
@@ -4353,7 +4353,7 @@ static void lsp_wline_bw(int n)
 		wline++;
 
 		if (wline == line->n_wlines)
-			lsp_error("Cannot find start of current page.");
+			lsp_error("%s: Cannot find start of current page.", __func__);
 	}
 
 	/*
@@ -4666,7 +4666,7 @@ static void lsp_exec_man()
 	pid_t pid = forkpty(&ptmxfd, NULL, &termios, &winsize);
 
 	if (pid == -1)
-		lsp_error("%s", strerror(errno));
+		lsp_error("forkpty(): %s", strerror(errno));
 
 	if (pid == 0) {		/* child process */
 		lsp_set_manpager();
@@ -4674,7 +4674,7 @@ static void lsp_exec_man()
 		char **e_argv = lsp_create_argv(lsp_reload_command, cf->name);
 
 		execvp(e_argv[0], e_argv);
-		lsp_error("execvp() failed.");
+		lsp_error("%s: execvp() failed.", __func__);
 	}
 
 	cf->fd = ptmxfd;
@@ -5310,7 +5310,7 @@ static void lsp_cmd_open_manpage()
 
 	/* Read name of manpage */
 	if (wmove(lsp_win, lsp_maxy - 1, 0) == ERR)
-		lsp_error("wmove failed.");
+		lsp_error("%s: wmove failed.", __func__);
 	wattr_set(lsp_win, A_NORMAL, LSP_DEFAULT_PAIR, NULL);
 
 	mvwaddstr(lsp_win, lsp_maxy - 1, 0, "Enter name of manpage, e.g. xyz(n): ");
