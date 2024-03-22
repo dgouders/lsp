@@ -728,12 +728,15 @@ static bool lsp_is_at_bol()
 /*
  * Create TOC for active file.
  *
- * We create three levels containing lines with increasing
+ * We create three levels roughly containing lines with increasing
  * indentation: none, 4, 8.
  *
  * This was implemented for manual pages in which case we really get
  * kind of a handy TOC.	 But, because we are just hiding blocks of text
  * this actually should be called "folding", perhaps...
+ *
+ * We also implemented some heuristics to do something useful with C code
+ * (i.e. show function-headers), but that is highly experimental!
  */
 static void lsp_file_create_toc()
 {
@@ -754,8 +757,13 @@ static void lsp_file_create_toc()
 	struct lsp_line_t *line = lsp_get_this_line();
 
 	while (line) {
-		/* Level 0: all lines with other than space as the
-		   first character. */
+		/*
+		 * Level 0: all lines with other than space as the
+		 * first character.
+		 *
+		 * Also, ignore some additional characters to do something
+		 * sensible with C code: limit mainly to funcion headers.
+		 */
 		if (line->nlen > 0 &&
 		    line->normalized[0] != ' ' &&
 		    line->normalized[0] != '\t' &&
