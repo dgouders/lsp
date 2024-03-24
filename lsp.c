@@ -4296,6 +4296,8 @@ static void lsp_cmd_forward(int n)
 			int ch = lsp_file_getch();
 			if (ch == '\n')
 				i++;
+			if (ch == -1)
+				break;
 		}
 	} else
 		/* read forward n window lines */
