@@ -4057,7 +4057,6 @@ static void lsp_display_page()
 					mvwadd_wch(lsp_win, y, x, cchar_ch);
 
 					getyx(lsp_win, y, x);
-					wmove(lsp_win, y, x);
 					break;
 				}
 
@@ -4101,7 +4100,6 @@ static void lsp_display_page()
 				mvwadd_wch(lsp_win, y, x, cchar_ch);
 
 				getyx(lsp_win, y, x);
-				wmove(lsp_win, y, x);
 
 				/* Line is done if ncurses already skipped to the next
 				   line and we only have a linefeed left in this
@@ -4167,7 +4165,6 @@ line_done:
 	while ((y < (lsp_maxy - 1))) {
 		mvwadd_wch(lsp_win, y, x, cchar_ch);
 		getyx(lsp_win, y, x);
-		wmove(lsp_win, y, x);
 	}
 
 	if (!lsp_mode_is_toc())
