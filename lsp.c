@@ -5505,16 +5505,15 @@ static void lsp_cmd_toggle_options()
 	case 'c':
 		lsp_chop_lines = !lsp_chop_lines;
 
-		/* The first window line could be somewhere inside a physical
-		   one. */
-		if (lsp_chop_lines)
-			lsp_goto_bol();
-
 		if (lsp_chop_lines) {
 			lsp_prompt = "Chopping lines that do not fit.";
-		} else {
+
+			/* The first line of the current window could be
+			   somewhere inside a physical one.
+			   Make sure we show it from its beginning. */
+			lsp_goto_bol();
+		} else
 			lsp_prompt = "Lines chopping turned OFF.";
-		}
 		break;
 	case 'n':
 		lsp_do_line_numbers = !lsp_do_line_numbers;
