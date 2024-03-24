@@ -1236,11 +1236,11 @@ static struct lsp_line_t *lsp_get_this_line() {
  */
 static void lsp_init_hwin()
 {
-	if (lsp_hwin == NULL || lsp_hwin_cols != lsp_maxx + 1) {
+	if (lsp_hwin == NULL || lsp_hwin_cols != lsp_maxx) {
 		if (lsp_hwin != NULL)
 			delwin(lsp_hwin);
-		lsp_hwin = newwin(2, lsp_maxx + 1, 0, 0);
-		lsp_hwin_cols = lsp_maxx + 1;
+		lsp_hwin = newwin(2, lsp_maxx, 0, 0);
+		lsp_hwin_cols = lsp_maxx;
 	}
 
 	wmove(lsp_hwin, 0, 0);
