@@ -224,6 +224,7 @@ static struct lsp_line_t *	lsp_get_this_line(void);
 static struct gref_t *		lsp_gref_find(char *);
 static int			lsp_gref_henter(struct gref_t *);
 static void			lsp_goto_bol(void);
+static void			lsp_goto_last_wpage(void);
 static void			lsp_grefs_dtor(void);
 static struct gref_t *		lsp_gref_search(const char *);
 static bool			lsp_has_man_placeholders(const char *);

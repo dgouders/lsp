@@ -3521,7 +3521,10 @@ static void lsp_cmd_goto_end()
 
 	lsp_file_set_pos(cf->size);
 
-	lsp_file_backward(0);
+	if (lsp_chop_lines)
+		lsp_file_backward(0);
+	else
+		lsp_goto_last_wpage();
 }
 
 /*
@@ -4403,6 +4406,52 @@ static void lsp_wline_bw(int n)
 			break;
 		}
 		n -= line->n_wlines;
+	}
+
+	lsp_line_dtor(line);
+}
+
+/*
+ * Set position to the first window line of the last page.
+ * Do this by moving in window lines, not physical lines.
+ *
+ * This function requires the file's data already read to EOF.
+ */
+void lsp_goto_last_wpage()
+{
+	int n = lsp_maxy - 1;
+	struct lsp_line_t *line = NULL;
+
+	/* Go to last line in file but ignore a final newline. */
+	lsp_file_set_pos(cf->size - 1);
+
+	while (n) {
+		lsp_line_dtor(line);
+		line = lsp_get_this_line();
+
+		if (line == NULL) {
+			lsp_file_set_pos(0); /* Beginning of file reached. */
+			return;
+		}
+
+		lsp_line_add_wlines(line);
+
+		if (line->n_wlines == n) {
+			/* We are done - this is the top line of the last page. */
+			lsp_file_set_pos(line->pos);
+			break;
+		}
+
+		if (line->n_wlines < n) {
+			n -= line->n_wlines;
+			/* Prepare to get the previous line. */
+			lsp_file_set_pos(line->pos ? line->pos - 1 : 0);
+		} else {
+			line->n_wlines -= n;
+			/* The top window line is within this line. */
+			lsp_file_set_pos(line->wlines[line->n_wlines] + line->pos);
+			break;
+		}
 	}
 
 	lsp_line_dtor(line);
