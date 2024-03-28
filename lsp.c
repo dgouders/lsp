@@ -1267,6 +1267,12 @@ static void lsp_line_add_wlines(struct lsp_line_t *line)
 	size_t wli = 0;		/* wline index */
 	char new_wline = 0;	/* to identify parts containing just a newline */
 
+	/* Two variables to count conversion characters for TABs and
+	 * carriage return that we need to virtually insert into the line.
+	 */
+	size_t tab_count = 0;
+	size_t cr_count = 0;
+
 	lsp_init_hwin();	/* Initialize hidden window. */
 
 	while (i < line->len) {
@@ -1294,15 +1300,31 @@ static void lsp_line_add_wlines(struct lsp_line_t *line)
 
 		new_wline = 0;
 
-		/* TABs we just expand and count. */
+		/* Expand TABs by inserting spaces into the line. */
 		if (line->raw[i] == '\t') {
-			current_col += lsp_expand_tab(current_col);
-			i++;
-			continue;
+			/* -1, because the \t itself also counts. */
+			tab_count = lsp_expand_tab(current_col) - 1;
+			line->raw[i] = ' ';
 		}
 
-		/* Proceed with next (possibly multibyte) character */
-		i += lsp_mbtowc(ch, line->raw + i, line->len - i);
+		/* Replace carriage return with ^M. */
+		if (line->raw[i] == '\r' && !lsp_keep_cr) {
+			cr_count = 2;
+
+		}
+
+		if (tab_count) {
+			ch[0] = ' ';
+			tab_count--;
+		} else if (cr_count) {
+			/* For CR we insert first a '^' and second a 'M'. */
+			ch[0] = line->raw[i] = cr_count == 2 ? '^' : 'M';
+			/* Only one char caused this replacement. */
+			if (cr_count-- == 1)
+				i++;
+		} else
+			/* Proceed with next (possibly multibyte) character. */
+			i += lsp_mbtowc(ch, line->raw + i, line->len - i);
 
 		/*
 		 * Output the char to hidden window and after that check the new
