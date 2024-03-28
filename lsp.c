@@ -4204,62 +4204,10 @@ line_done:
 }
 
 /*
- * In the given "physical" line, forward one window line.
- *
- * Finally, adjust offset of the remaining line in the input file.
- */
-static void lsp_line_fw_wline(struct lsp_line_t *line)
-{
-	int i = 0;
-	int n = 0;
-	wchar_t ch;
-
-	/* We can just forward the full line if the normalized data fits within
-	   the width of the window.
-	   This is kind of conservative, because the normalized data could
-	   still consist of multibyte characters and consume even fewer
-	   columns than the byte count implies.	*/
-	if (lsp_maxx >= line->nlen) {
-		line->pos += line->len;
-		line->len = line->nlen = 0;
-		return;
-	}
-
-	while (n < lsp_maxx && i < line->nlen) {
-		if (line->normalized[i] == '\n') {
-			i++;
-			break;
-		}
-		if (line->normalized[i] == '\t') {
-			n += lsp_expand_tab(n);
-			i++;
-		} else {
-			i += lsp_mbtowc(&ch, line->normalized + i, line->nlen - i);
-			n++;
-		}
-	}
-
-	/* We consumed i bytes from line for one window line.  Remove them.
-	   We use memmove(), because the whole allocated memory gets free()'d, later. */
-	int raw_len = lsp_normalize_count(line->raw, line->len, i);
-	line->pos += raw_len;
-	line->len -= raw_len;
-	memmove(line->raw, line->raw + raw_len, line->len);
-	line->nlen -= i;
-	memmove(line->normalized, line->normalized + i, line->nlen);
-
-}
-
-/*
  * Move forward n lines in the window.
- * Window lines are at minimum the length of a "physical" line (the bytes
- * between thwo '\n' characters), if the latter is shorter than the width of the
- * window.  In cases where "physical" lines are longer than the window width,
- * they are divided into parts that fit the window width.
  *
- * So: from the current position, get consecutive "physical" lines, divide them if
- *     necessary and count until n is reached.  We need to ignore control
- *     characters to get net lengths.  Sounds like an understandable task...
+ * From the current position we move forward and divide each physical line into
+ * window lines.  The latter we count until we reach n.
  *
  * Not so obvious: the important part this function does is positioning the
  * current file to the target window line by calling
@@ -4276,25 +4224,28 @@ static void lsp_wline_fw(int n)
 		if (!line)
 			return;
 
+		/* Line consits of just a newline character. */
 		if (line->len == 1) {
 			n--;
 			lsp_line_dtor(line);
 			continue;
 		}
 
-		while (n && line->len > 1) {
-			/* Forward one window width in the line */
-			lsp_line_fw_wline(line);
-			n--;
+		/* Divide physical line into window lines. */
+		lsp_line_add_wlines(line);
 
-			/* We're done with the line if only a linefeed is left. */
-			if (*(line->normalized) == '\n') {
-				line->pos += line->len;
-				break;
-			}
+		if (n >= line->n_wlines) {
+			/* Could be that we are done but we don't need to set
+			 * the position, because in that case the complete line
+			 * fullfills n and reading the line already moved the
+			 * position past the current line.
+			 */
+			n -= line->n_wlines;
+		} else {
+			/* We are done, this line fullfills n */
+			lsp_file_set_pos(line->wlines[n] + line->pos);
+			n = 0;
 		}
-
-		lsp_file_set_pos(line->pos);
 
 		lsp_line_dtor(line);
 	}

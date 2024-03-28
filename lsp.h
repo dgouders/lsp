@@ -248,7 +248,6 @@ static struct lsp_line_t *	lsp_line_ctor(void);
 static void			lsp_line_cut_tail(struct lsp_line_t *, off_t);
 static void			lsp_line_dtor(struct lsp_line_t *);
 static int			lsp_line_handle_leading_sgr(attr_t *, short *);
-static void			lsp_line_fw_wline(struct lsp_line_t *);
 static size_t			lsp_line_get_matches(const struct lsp_line_t *, regmatch_t **);
 static void			lsp_lines_add(off_t);
 static void *			lsp_malloc(size_t);
