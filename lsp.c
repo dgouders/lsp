@@ -1252,9 +1252,6 @@ static void lsp_init_hwin()
  *
  * For the current window width: add pointers to window lines for the given
  * line.
- *
- * Caution, the line could contain tabs that would make the expanded line much
- * longer than line->len pretends!
  */
 static void lsp_line_add_wlines(struct lsp_line_t *line)
 {
@@ -1266,7 +1263,7 @@ static void lsp_line_add_wlines(struct lsp_line_t *line)
 	int col = 0;
 
 	size_t i = 0;		/* current byte in the line */
-	size_t current_col = 0;	/* current column in one window line */
+	int current_col = 0;    /* current column in one window line */
 	size_t wli = 0;		/* wline index */
 	char new_wline = 0;	/* to identify parts containing just a newline */
 
