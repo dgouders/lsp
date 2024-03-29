@@ -1158,7 +1158,7 @@ static int lsp_toc_move_to_next()
 		cf->toc = cf->toc->prev;
 
 	/* Move forward until we find a proper entry or the end. */
-	while (cf->toc->pos <= lsp_pos || cf->toc->level > cf->current_toc_level)
+	while (cf->toc->pos < lsp_pos || cf->toc->level > cf->current_toc_level)
 		if (!cf->toc->next) {
 			/* Restore old TOC entry and return failure. */
 			cf->toc = old_toc;
