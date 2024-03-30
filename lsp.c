@@ -3269,7 +3269,7 @@ static void lsp_file_search_prev(lsp_mode_t search_mode)
 
 	lsp_file_set_current_match(pos);
 
-	lsp_search_align_to_match();
+	lsp_search_align_to_match(0);
 
 }
 
@@ -3359,7 +3359,7 @@ static void lsp_file_search_next(lsp_mode_t search_mode)
 	lsp_mode_set(search_mode);
 	lsp_file_set_current_match(pos);
 
-	lsp_search_align_to_match();
+	lsp_search_align_to_match(0);
 
 }
 
@@ -3417,12 +3417,50 @@ static bool lsp_validate_ref_at_pos(regmatch_t pos)
 	return gref->valid;
 }
 
-static void lsp_search_align_to_match()
+/*
+ * Upper level aligninment of search matches.
+ *
+ * The argument invert tells us if we should use the current strategy
+ * (i.e. when a search starts or when the user navigates matches) or if
+ * we should invert the current strategy when the user presses CTRL_L while
+ * navigating search matches to temporarily switch to the other strategy.
+ */
+static void lsp_search_align_to_match(int invert)
 {
-	if (lsp_mode_is_toc())
-		lsp_search_align_toc_to_match();
+	int top;
+
+	if (lsp_is_no_match(cf->current_match))
+		return;
+
+	if (invert)
+		top = !lsp_match_top;
 	else
-		lsp_search_align_page_to_match();
+		top = lsp_match_top;
+
+	if (top)
+		/* Bring current search match to the first line. */
+		if (lsp_mode_is_toc())
+			cf->toc = lsp_pos_to_toc(cf->current_match.rm_so);
+		else {
+			lsp_file_set_pos(cf->current_match.rm_so);
+			lsp_goto_bol();
+		}
+	else
+		/*
+		 * Show search match with context.
+		 * If the user pressed CTRL-l (invert == true) to temporarily
+		 * switch the positioning strategy, we move the match outside
+		 * the page to ensure proper realignment.
+		 */
+		if (lsp_mode_is_toc()) {
+			if (invert)
+				lsp_toc_fw(1);
+			lsp_search_align_toc_to_match();
+		} else {
+			if (invert)
+				cf->page_first = cf->current_match.rm_eo;
+			lsp_search_align_page_to_match();
+		}
 }
 
 /* Position TOC according to the search match.
@@ -5666,6 +5704,11 @@ static void lsp_toc_first_adjust()
 static void lsp_workhorse()
 {
 	/*
+	 * We want to detect double CTRL_l keys to toggle positioning of search
+	 * matches.
+	 */
+	int ctrl_l_count = 0;
+	/*
 	 * The initial command is to display the first page of content.
 	 */
 	int cmd = ' ';
@@ -5706,12 +5749,19 @@ static void lsp_workhorse()
 			lsp_display_page();
 			break;
 		case CTRL_L:
-			/*
-			 * Bring current search match to the first line.
-			 */
 			if (lsp_is_a_match(cf->current_match)) {
-				lsp_file_set_pos(cf->current_match.rm_so);
-				lsp_goto_bol();
+				if (++ctrl_l_count == 2) {
+					/* Just flip match position strategy.
+					   (top <-> center) */
+					ctrl_l_count = 0;
+					lsp_match_top = !lsp_match_top;
+					lsp_prompt =
+						lsp_match_top ? "Show search matches at top" :
+						"Show search matches with context";
+					break;
+				}
+
+				lsp_search_align_to_match(1);
 				lsp_display_page();
 			}
 			break;
@@ -5966,6 +6016,9 @@ static void lsp_workhorse()
 
 		cmd = wgetch(lsp_win);
 		lsp_debug("Next command: %s (0x%04x)", keyname(cmd), cmd);
+
+		if (cmd != CTRL_L)
+			ctrl_l_count = 0;
 
 		if (lsp_mode_is_refs() &&
 		    cmd != '\t' &&
@@ -6484,6 +6537,7 @@ static void lsp_init()
 
 	lsp_no_match.rm_so = lsp_no_match.rm_eo = (off_t)-1;
 	lsp_case_sensitivity = false;
+	lsp_match_top = false;
 
 	lsp_color = true;
 

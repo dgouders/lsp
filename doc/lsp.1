@@ -17,7 +17,7 @@
 .\" You should have received a copy of the GNU General Public License along with
 .\" lsp. If not, see <https://www.gnu.org/licenses/>.
 .\"
-.TH lsp 1 02/12/2024 0.5.0-rc4 "User commands"
+.TH lsp 1 03/28/2024 0.5.0-rc4 "User commands"
 .\"--------------------------------------------------------------------
 .SH Name
 .\"--------------------------------------------------------------------
@@ -123,6 +123,13 @@ the first/last line is reached.
 .B CTRL-l
 can be used to bring the line with the current match
 to the top of the screen.
+.IP \[bu]
+The positioning of search matches can be toggled by pressing
+.B CTRL-l
+twice.
+
+This toggles whether search matches are placed on the
+first line or as described above.
 .IP \[bu]
 Highlighting of matches remains active when changing back to normal
 file movement.  Press

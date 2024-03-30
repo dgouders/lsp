@@ -293,7 +293,7 @@ static void			lsp_wline_bw(int);
 static void			lsp_wline_fw(int);
 static void			lsp_search_align_page_to_match(void);
 static void			lsp_search_align_toc_to_match(void);
-static void			lsp_search_align_to_match(void);
+static void			lsp_search_align_to_match(int);
 static char *			lsp_search_compile_regex(lsp_mode_t);
 static regmatch_t		lsp_search_file_next(void);
 static regmatch_t		lsp_search_find_prev_match(struct lsp_line_t **);
@@ -451,6 +451,14 @@ char lsp_search_string_old[256];
 /* These variables hold a compiled regular expression for searches. */
 regex_t *lsp_search_regex;
 regex_t *lsp_refs_regex;
+
+/*
+ * The following variable steers the positioning of search matches.
+ * Matches can go to the first line or centerd in the window and this is toggled
+ * by pressing CTRL-l twice.
+ * We want to have this setting global for all files, thus the global variable.
+ */
+bool lsp_match_top;
 
 /* Names for color pairs that we use. */
 enum { LSP_DEFAULT_PAIR = 0, LSP_BOLD_PAIR, LSP_UL_PAIR,
