@@ -71,6 +71,7 @@
  */
 
 #define _GNU_SOURCE
+#define _XOPEN_SOURCE 500  // X/Open 5, incorporating POSIX 1995
 
 #include <stdlib.h>
 #include <stdio.h>
