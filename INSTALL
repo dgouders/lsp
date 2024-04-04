@@ -1,0 +1,40 @@
+                lsp installation
+
+
+DEPENDENCIES
+
+- meson build system <https://mesonbuild.com>
+- ncursesw <https://invisible-island.net/ncurses/>
+- ninja build system <https://ninja-build.org>
+- pkg-config <https://gitlab.freedesktop.org/pkg-config/pkg-config>
+
+ncursesw is readily available on macOS.
+
+
+BUILDING
+
+    $ meson setup <builddir>
+    $ cd <builddir>
+    $ meson compile
+
+Where <builddir> denotes the path to the directory that will contain the built
+files.
+
+Alternatively, you can specify an install prefix via
+
+    $ meson setup --prefix=<install prefix> <builddir>
+
+in the first step above, with <install prefix> denoting the path into which lsp
+will later be installed
+
+Please note: on macOS with homebrew, <install prefix> seems to default to the
+homebrew tree. This may later lead to problems, at least to `brew doctor`
+complaining. So, consider overriding the prefix. You can check which prefix is
+being used via
+
+    $ meson configure <builddir> | grep prefix
+
+
+INSTALLING
+
+    $ meson install
