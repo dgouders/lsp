@@ -72,6 +72,10 @@
 
 #define _GNU_SOURCE
 
+#ifndef _XOPEN_SOURCE
+#define _XOPEN_SOURCE 700
+#endif
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stddef.h>
