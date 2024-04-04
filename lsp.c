@@ -80,6 +80,7 @@
 #include <limits.h>
 #include <string.h>
 #include <curses.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <errno.h>
 #include <fcntl.h>
