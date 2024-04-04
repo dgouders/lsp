@@ -73,6 +73,10 @@
 #define _GNU_SOURCE
 #define _XOPEN_SOURCE 500  // X/Open 5, incorporating POSIX 1995
 
+#if defined(__APPLE__) && defined(__MACH__)
+#define TCGETS TIOCGETA
+#endif
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stddef.h>
