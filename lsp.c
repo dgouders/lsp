@@ -2667,7 +2667,15 @@ static int lsp_gref_henter(struct gref_t *gref_p)
 	ENTRY e;
 	ENTRY *ep;
 
+/*
+ * BSD hdestroy() calls free() for each key.
+ * So, create a duplicate key for those systems to ensure our later cleanup works correctly.
+ */
+#if defined __APPLE__ && defined __MACH__
+	e.key = strdup(gref_p->name);
+#else
 	e.key = gref_p->name;
+#endif
 	e.data = gref_p;
 
 	ep = hsearch(e, ENTER);
