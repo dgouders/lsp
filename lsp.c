@@ -76,6 +76,10 @@
 #define _XOPEN_SOURCE 700
 #endif
 
+#if defined(__APPLE__) && defined(__MACH__)
+#define TCGETS TIOCGETA
+#endif
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stddef.h>
