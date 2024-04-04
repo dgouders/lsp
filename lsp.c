@@ -2634,7 +2634,7 @@ static int lsp_gref_henter(struct gref_t *gref_p)
 	ENTRY e;
 	ENTRY *ep;
 
-	e.key = gref_p->name;
+	e.key = strdup(gref_p->name);
 	e.data = gref_p;
 
 	ep = hsearch(e, ENTER);
