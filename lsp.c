@@ -6559,9 +6559,9 @@ static void lsp_init()
 	lsp_load_apropos = false;
 	lsp_apropos_command = strdup("apropos . | sort | sed 's/ (/(/'");
 
-	lsp_reload_command = strdup("man %n.%s");
+	lsp_reload_command = strdup("man %s %n");
 
-	lsp_verify_command = strdup("man -w %n.%s > /dev/null 2>&1");
+	lsp_verify_command = strdup("man -w %s %n > /dev/null 2>&1");
 
 	lsp_verify_with_apropos = false;
 

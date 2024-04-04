@@ -17,7 +17,7 @@
 .\" You should have received a copy of the GNU General Public License along with
 .\" lsp. If not, see <https://www.gnu.org/licenses/>.
 .\"
-.TH lsp 1 03/28/2024 0.5.0-rc4 "User commands"
+.TH lsp 1 04/07/2024 0.5.0-rc4 "User commands"
 .\"--------------------------------------------------------------------
 .SH Name
 .\"--------------------------------------------------------------------
@@ -363,7 +363,7 @@ is one for the section.
 .IP
 Default is
 .RI \[dq] man
-.IR %n.%s \[dq].
+.IR %s\~%n \[dq].
 .TP
 .B -s, --search-string
 Specify an initial search string.
@@ -410,7 +410,7 @@ is a placeholder for the name of the manual page and
 is one for the section.
 .IP
 Default is
-.I \[dq]man\~-w\~%n.%s\~>\~/dev/null 2>&1\[dq]
+.I \[dq]man\~-w\~%s\~%n\~>\~/dev/null 2>&1\[dq]
 .
 .TP
 .
