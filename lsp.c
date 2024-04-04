@@ -83,7 +83,11 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <regex.h>
+#if defined(__APPLE__) && defined(__MACH__)
+#include <util.h>
+#else
 #include <pty.h>
+#endif
 #include <locale.h>
 #include <sys/wait.h>
 #include <ctype.h>
