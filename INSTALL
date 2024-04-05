@@ -2,7 +2,6 @@
 
 DEPENDENCIES
 
-- CMake build system <https://cmake.org>
 - meson build system <https://mesonbuild.com>
 - ncursesw <https://invisible-island.net/ncurses/> (already available on macOS)
 - ninja build system <https://ninja-build.org>
