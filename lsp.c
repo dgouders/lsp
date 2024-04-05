@@ -74,6 +74,9 @@
 #define _XOPEN_SOURCE 500  // X/Open 5, incorporating POSIX 1995
 
 #if defined(__APPLE__) && defined(__MACH__)
+#ifndef _DARWIN_C_SOURCE
+#define _DARWIN_C_SOURCE
+#endif
 #define TCGETS TIOCGETA
 #endif
 
