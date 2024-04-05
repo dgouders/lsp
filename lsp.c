@@ -77,6 +77,9 @@
 #endif
 
 #if defined(__APPLE__) && defined(__MACH__)
+#ifndef _DARWIN_C_SOURCE
+#define _DARWIN_C_SOURCE
+#endif
 #define TCGETS TIOCGETA
 #endif
 
