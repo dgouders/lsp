@@ -72,6 +72,17 @@
 
 #define _GNU_SOURCE
 
+#ifndef _XOPEN_SOURCE
+#define _XOPEN_SOURCE 700
+#endif
+
+#if defined(__APPLE__) && defined(__MACH__)
+#ifndef _DARWIN_C_SOURCE
+#define _DARWIN_C_SOURCE
+#endif
+#define TCGETS TIOCGETA
+#endif
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stddef.h>
@@ -79,11 +90,16 @@
 #include <limits.h>
 #include <string.h>
 #include <curses.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <regex.h>
+#if defined(__APPLE__) && defined(__MACH__)
+#include <util.h>
+#else
 #include <pty.h>
+#endif
 #include <locale.h>
 #include <sys/wait.h>
 #include <ctype.h>
@@ -2654,7 +2670,15 @@ static int lsp_gref_henter(struct gref_t *gref_p)
 	ENTRY e;
 	ENTRY *ep;
 
+/*
+ * BSD hdestroy() calls free() for each key.
+ * So, create a duplicate key for those systems to ensure our later cleanup works correctly.
+ */
+#if defined __APPLE__ && defined __MACH__
+	e.key = strdup(gref_p->name);
+#else
 	e.key = gref_p->name;
+#endif
 	e.data = gref_p;
 
 	ep = hsearch(e, ENTER);
@@ -6546,9 +6570,9 @@ static void lsp_init()
 	lsp_load_apropos = false;
 	lsp_apropos_command = strdup("apropos . | sort | sed 's/ (/(/'");
 
-	lsp_reload_command = strdup("man %n.%s");
+	lsp_reload_command = strdup("man %s %n");
 
-	lsp_verify_command = strdup("man -w %n.%s > /dev/null 2>&1");
+	lsp_verify_command = strdup("man -w %s %n > /dev/null 2>&1");
 
 	lsp_verify_with_apropos = false;
 
