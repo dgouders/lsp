@@ -214,6 +214,7 @@ static void			lsp_file_toc_add(const struct lsp_line_t *, int);
 static void			lsp_file_ungetch(void);
 static void			lsp_files_list(void);
 static void			lsp_finish(void) __attribute__ ((noreturn));
+static size_t			lsp_fread(void *, size_t, size_t, FILE *);
 static short			lsp_get_color_pair(short, short);
 static struct gref_t *		lsp_get_gref_at_pos(regmatch_t);
 static struct lsp_line_t *	lsp_get_line_at_pos(off_t);

@@ -2117,6 +2117,16 @@ static void lsp_init_cmd_input()
 	}
 }
 
+static size_t lsp_fread(void *ptr, size_t size, size_t nmemb, FILE *stream)
+{
+	size_t nread = fread(ptr, size, nmemb, stream);
+
+	if (ferror(stream))
+		lsp_error("%s: fread(3) failed.", __func__);
+
+	return nread;
+}
+
 /*
  * Open input file.
  *
@@ -2188,7 +2198,7 @@ static int lsp_open_file(const char *name)
 		size_t nread = 0;
 
 		while (!feof(fp)) {
-			nread += fread(buffer + nread, 1, sizeof(buffer) - nread, fp);
+			nread += lsp_fread(buffer + nread, 1, sizeof(buffer) - nread, fp);
 
 			if (nread == sizeof(buffer))
 				lsp_error("%s: replacement file name too long.", __func__);
