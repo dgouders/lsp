@@ -6498,6 +6498,11 @@ static void lsp_finish()
 
 	lsp_file_ring_dtor();
 
+	if (lsp_refs_regex) {
+		regfree(lsp_refs_regex);
+		free(lsp_refs_regex);
+	}
+
 	lsp_grefs_dtor();
 
 	if (lsp_hwin != NULL)
@@ -6549,6 +6554,8 @@ static void lsp_init_logfile()
 		lsp_error("%s: %s", lsp_logfile, strerror(errno));
 
 	setlinebuf(lsp_logfp);
+
+	free(lsp_logfile);
 }
 #endif
 
