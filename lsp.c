@@ -4564,11 +4564,9 @@ static void lsp_open_manpage(char *name)
  * and a string that specifies the manual page to load, e.g. "man.1"; for other
  * possible formats see lsp_create_man_id().
  */
-char** lsp_create_argv(char *format, char *str)
+static char** lsp_create_man_argv(char *format, char *str)
 {
-	char **argv = lsp_malloc(sizeof(char *));
-	char *tok;
-	unsigned int i = 0;
+	char **argv;
 	struct man_id m_id;
 
 	lsp_debug("%s: building argv: format = \"%s\", str = \"%s\"",
@@ -4640,27 +4638,9 @@ char** lsp_create_argv(char *format, char *str)
 
 	lsp_debug("%s: expanded format string = \"%s\"", __func__, format_dup);
 
-	tok = strtok(format_dup, " ");
-
-	/*
-	 * Fill argv[] with space-separated tokens.
-	 */
-	while (tok) {
-		lsp_debug("%s: found token %s.", __func__, tok);
-		argv[i] = strdup(tok);
-
-		/* Get next token. */
-		tok = strtok(NULL, " ");
-
-		i++;
-		argv = lsp_realloc(argv, (i + 1) * sizeof(char *));
-	}
-
+	argv = lsp_str2argv(format_dup);
 	lsp_delete_man_id(&m_id);
 	free(format_dup);
-
-	/* Terminate argv. */
-	argv[i] = NULL;
 
 	return argv;
 }
@@ -4777,7 +4757,7 @@ static void lsp_exec_man()
 	if (pid == 0) {		/* child process */
 		lsp_set_manpager();
 
-		char **e_argv = lsp_create_argv(lsp_reload_command, cf->name);
+		char **e_argv = lsp_create_man_argv(lsp_reload_command, cf->name);
 
 		execvp(e_argv[0], e_argv);
 		lsp_error("%s: execvp() failed.", __func__);
@@ -6203,73 +6183,130 @@ static void lsp_usage(const char *pathname)
 }
 
 /*
- * Parse options from environment variable:
- * identify words separated by one or more spaces but also recognize quotes.
+ * Parse the given string into words separated by spaces and store copies of
+ * the words in an argument vector.
+ *
+ * Return that vector or NULL if we were given a NULL pointer.
+ *
+ * fixme: this function needs final polishing:
+ *        - Handle escaped quotes inside quotes.
+ *        - Perhaps, allow quoting with single quotes ("'").
  */
-static void lsp_parse_env_options(int *argc, char **argv[], char *options)
+static char** lsp_str2argv(const char *string)
 {
-	int ac1;
+	char **argv = lsp_malloc(sizeof(char *));
+	argv[0] = NULL;
+	int argc;
+	int argc_save;
 
-	*argc = 1;
 	size_t i;
 	char in_quotes = FALSE;
 	char in_word = FALSE;
 
-	/* First pass: count options for allocation of pointer array. */
-	for (i = 0; options[i]; i++) {
-		if (options[i] == ' ') {
-			(*argc)++;
-			while (options[++i] == ' ')
-				; /* just forward */
-		}
+	if (!string) {
+		free(argv);
+		return NULL;
 	}
 
-	(*argc)++;
+	char *tmp_str = strdup(string);
+
+	lsp_debug("%s: building argv from \"%s\"", __func__, tmp_str);
+
+	/*
+	 * Roughly count space-separated words to get a failsafe estimate
+	 * for the size of argv.
+	 * (We don't detect quoted strings with spaces in it or trailing spaces
+	 * without a further word, so our count could be larger than the size
+	 * actually needed.)
+	 */
+	argc = 1;
+	for (i = 0; tmp_str[i]; i++) {
+		if (tmp_str[i] == ' ') {
+			argc++;
+			while (tmp_str[++i] == ' ')
+				; /* just forward */
+		} else if (tmp_str[i + 1] == '\0')
+			argc++;
+	}
+
+	lsp_debug("%s: argv size = %d", __func__, argc);
+
+	argv = lsp_realloc(argv, argc * sizeof(char *));
+
 	/* Save value for later comparison */
-	ac1 = *argc;
+	argc_save = argc;
+	argc = -1;
 
-	*argv = lsp_malloc(*argc * sizeof(char *));
-
-	*argc = 0;
-
-	(*argv)[0] = "lsp_options";
-
-	/* Second pass: actually build argument vector. */
-	for (i = 0; options[i]; i++) {
-		if (options[i] == '"') {
+	/* Build argument vector. */
+	for (i = 0; tmp_str[i]; i++) {
+		if (tmp_str[i] == '"') {
 			in_quotes = !in_quotes;
 			if (in_quotes == TRUE)
-				(*argv)[++(*argc)] = options + i + 1;
-			if (in_quotes == FALSE)
-				options[i] = '\0';
+				argv[++argc] = tmp_str + i + 1;
+			if (in_quotes == FALSE) {
+				tmp_str[i] = '\0';
+				argv[argc] = strdup(argv[argc]);
+			}
 			continue;
 		}
 
 		if (in_quotes == TRUE)
 			continue;
 
-		if (options[i] == ' ') {
-			options[i] = '\0';
+		if (tmp_str[i] == ' ') {
+			tmp_str[i] = '\0';
+			argv[argc] = strdup(argv[argc]);
 			in_word = FALSE;
+
+			/* Skip multi-space sequences. */
+			while (tmp_str[i + 1] == ' ')
+				i++;
 			continue;
 		}
 
 		if (in_word == FALSE) {
-			(*argv)[++(*argc)] = options + i;
+			argv[++argc] = tmp_str + i;
 			in_word = TRUE;
 		}
 	}
 
-	(*argc)++;
+	if (in_word)
+		argv[argc] = strdup(argv[argc]);
 
-	if (ac1 != *argc)
+	argv[++argc] = NULL;
+
+	if (argc_save < argc)
 		lsp_error("%s: problem with counting options: %d vs %d",
-			  __func__, ac1, *argc);
+			  __func__, argc_save, argc);
 
 	if (in_quotes == TRUE)
 		lsp_error("%s: unmatched quotes in options: %s.",
-			  __func__, options);
+			  __func__, tmp_str);
 
+	free(tmp_str);
+#if DEBUG
+	lsp_print_argv(argv);
+#endif
+	return argv;
+}
+
+/*
+ * Parse options from environment variable and create an argv.
+ */
+static char **lsp_env2argv(char *options)
+{
+	char **argv;
+
+	char *argv_0 = "lsp_options ";
+	char *argv_str;
+
+	argv_str = lsp_malloc(strlen(argv_0) + strlen(options) + 1);
+	strcpy(argv_str, argv_0);
+	strcat(argv_str, options);
+
+	argv = lsp_str2argv(argv_str);
+	free(argv_str);
+	return argv;
 }
 
 /*
@@ -6315,11 +6352,12 @@ static void lsp_process_env_options()
 
 	lsp_options = strdup(lsp_options);
 
-	lsp_parse_env_options(&env_argc, &env_argv, lsp_options);
+	env_argv = lsp_env2argv(lsp_options);
+	env_argc = lsp_argv_size(env_argv);
 
 	lsp_process_options(env_argc, env_argv);
 
-	free(env_argv);
+	lsp_argv_dtor(env_argv);
 	free(lsp_options);
 }
 
@@ -6602,6 +6640,46 @@ static void lsp_init()
 
 	lsp_hwin = NULL;
 	lsp_hwin_cols = -1;
+}
+
+#if DEBUG
+static void lsp_print_argv(char **argv)
+{
+	int i = 0;
+
+	lsp_debug("%s: argv length = %d", __func__, lsp_argv_size(argv));
+
+	while (argv[i])
+		lsp_debug("\t%s", argv[i++]);
+}
+#endif
+
+static int lsp_argv_size(char **argv)
+{
+	int i = 0;
+
+	if (!argv)
+		return -1;
+
+	while (argv[i])
+		i++;
+
+	lsp_debug("%s: argv has %d entries", __func__, i);
+
+	return i;
+}
+
+static void lsp_argv_dtor(char **argv)
+{
+	int i = 0;
+
+	if (!argv)
+		return;
+
+	while(argv[i])
+		free(argv[i++]);
+
+	free(argv);
 }
 
 int main(int argc, char *argv[])

@@ -140,9 +140,10 @@ enum lsp_mode {
 };
 
 typedef enum lsp_mode lsp_mode_t;
-
 
 static void			lsp_apropos_create_grefs(void);
+static void			lsp_argv_dtor(char **);
+static int			lsp_argv_size(char **);
 static size_t			lsp_buffer_free_size(void);
 static void *			lsp_calloc(size_t, size_t);
 static bool			lsp_cm_cursor_is_valid(void);
@@ -161,7 +162,7 @@ static void			lsp_cmd_toggle_options(void);
 static void			lsp_cmd_visit_reference(void);
 static char *			lsp_cmd_select_file(void);
 static int			lsp_cmp_line_pos(size_t, off_t);
-static char**			lsp_create_argv(char *, char *);
+static char**			lsp_create_man_argv(char *, char *);
 static struct man_id		lsp_create_man_id(const char *);
 static void			lsp_create_status_line(void);
 static void			lsp_cursor_care(void);
@@ -170,6 +171,7 @@ static size_t			lsp_decode_sgr(const char *, attr_t *, short *);
 static void			lsp_delete_man_id(struct man_id *);
 static char *			lsp_detect_manpage(bool);
 static void			lsp_display_page(void);
+static char **			lsp_env2argv(char *);
 static int			lsp_error(const char *, ...) __attribute__ ((noreturn));
 static void			lsp_exec_man(void);
 static int			lsp_expand_tab(size_t);
@@ -277,7 +279,6 @@ static size_t			lsp_normalize_count(const char *, size_t, size_t);
 static void			lsp_open_cterm(void);
 static int			lsp_open_file(const char *);
 static void			lsp_open_manpage(char *);
-static void			lsp_parse_env_options(int *, char ***, char *);
 #if DEBUG
 static void			lsp_print_file_ring(void);
 #endif
@@ -286,6 +287,9 @@ static void			lsp_process_options(int, char **);
 static bool			lsp_pos_is_at_bol(off_t);
 static bool			lsp_pos_is_current_page(off_t);
 static bool			lsp_pos_is_toc(off_t);
+#if DEBUG
+static void			lsp_print_argv(char **);
+#endif
 static void			lsp_process_env_open(void);
 static char *			lsp_read_manpage_name(void);
 static void *			lsp_realloc(void *, size_t);
@@ -306,6 +310,7 @@ static int			lsp_sgr_extract_enns(const char *, long *, size_t);
 static size_t			lsp_skip_bsp(const char *, size_t);
 static size_t			lsp_skip_sgr(const char *, size_t);
 static size_t			lsp_skip_to_payload(const char *, size_t);
+static char **			lsp_str2argv(const char *);
 static void			lsp_to_lower(char *);
 static struct toc_node_t *	lsp_pos_to_toc(off_t);
 static void			lsp_toc_bw(size_t);
