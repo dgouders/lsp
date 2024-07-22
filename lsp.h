@@ -140,6 +140,17 @@ enum lsp_mode {
 };
 
 typedef enum lsp_mode lsp_mode_t;
+
+/*
+ * Information needed to restart parent processes.
+ */
+struct lsp_parent_info {
+	char *cmd_line;
+	pid_t pid;
+	char **argv;
+};
+
+struct lsp_parent_info *lsp_pinfo;
 
 static void			lsp_apropos_create_grefs(void);
 static void			lsp_argv_dtor(char **);
@@ -222,6 +233,7 @@ static struct gref_t *		lsp_get_gref_at_pos(regmatch_t);
 static struct lsp_line_t *	lsp_get_line_at_pos(off_t);
 static struct lsp_line_t *	lsp_get_line_from_here(void);
 static struct lsp_line_t *	lsp_get_next_display_line(void);
+static char *			lsp_get_parent_cmd_line(pid_t);
 static size_t			lsp_get_sgr_len(const char *);
 static struct lsp_line_t *	lsp_get_this_line(void);
 static struct gref_t *		lsp_gref_find(char *);
@@ -279,6 +291,8 @@ static size_t			lsp_normalize_count(const char *, size_t, size_t);
 static void			lsp_open_cterm(void);
 static int			lsp_open_file(const char *);
 static void			lsp_open_manpage(char *);
+static void			lsp_pinfo_dtor(void);
+static void			lsp_pinfo_ctor(void);
 #if DEBUG
 static void			lsp_print_file_ring(void);
 #endif

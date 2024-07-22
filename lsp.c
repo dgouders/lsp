@@ -6559,6 +6559,8 @@ static void lsp_finish()
 	free(lsp_verify_command);
 	free(lsp_apropos_command);
 
+	lsp_pinfo_dtor();
+
 	exit(EXIT_SUCCESS);
 }
 
@@ -6640,6 +6642,8 @@ static void lsp_init()
 
 	lsp_hwin = NULL;
 	lsp_hwin_cols = -1;
+
+	lsp_pinfo_ctor();
 }
 
 #if DEBUG
@@ -6680,6 +6684,103 @@ static void lsp_argv_dtor(char **argv)
 		free(argv[i++]);
 
 	free(argv);
+}
+
+static unsigned int lsp_ndigits(unsigned int n)
+{
+	unsigned int digits = 1;
+
+	while (n > 9) {
+		n /= 10;
+		digits++;
+	}
+
+	return digits;
+}
+
+/*
+ * Execute command given in cmd and return its output as a string.
+ *
+ * Return NULL on failure.
+ */
+static char *lsp_run_command2str(char *cmd)
+{
+	/* Size of chunks to read. */
+	size_t r_len = 64;
+
+	/* Result string and its current length. */
+	size_t b_len = r_len;
+	char *buffer = lsp_malloc(b_len);
+
+	size_t nread = 0;
+
+	FILE *fp = popen(cmd, "r");
+
+	if (fp == NULL)
+		lsp_error("%s: could not popen(\"%s\").", __func__, cmd);
+
+	/*
+	 * Read command output and store it in the result string.
+	 */
+	while (!feof(fp)) {
+		size_t chunk = (buffer + nread) - (buffer + b_len);
+
+		if (!chunk) {
+			b_len += r_len;
+
+			buffer = lsp_realloc(buffer, b_len);
+
+			chunk = r_len;
+		}
+
+		/* Ensure string termination. */
+		buffer[nread] = '\0';
+
+		nread += lsp_fread(buffer + nread, 1, chunk, fp);
+	}
+
+	/* Maybe we are wasting some bytes, here.  The length is <= 64 and
+	   IMO not worth a realloc(). */
+
+	pclose(fp);
+
+	/* Remove trailing newline. */
+	if (nread && buffer[nread - 1] == '\n')
+		buffer[nread - 1] = '\0';
+
+	return buffer;
+}
+
+static char *lsp_get_parent_cmd_line(pid_t pid)
+{
+	char *ps_cmd = "ps -p %u -o args=";
+	char *cmd = lsp_malloc(strlen(ps_cmd) - 2 + lsp_ndigits(pid) + 1);
+	sprintf(cmd, ps_cmd, pid);
+	return lsp_run_command2str(cmd);
+}
+
+/*
+ * Create structure for information about our parent process.
+ */
+static void lsp_pinfo_ctor()
+{
+	lsp_pinfo = lsp_malloc(sizeof(*lsp_pinfo));
+
+	lsp_pinfo->pid = getppid();
+	lsp_pinfo->cmd_line = lsp_get_parent_cmd_line(lsp_pinfo->pid);
+	lsp_pinfo->argv = lsp_str2argv(lsp_pinfo->cmd_line);
+}
+
+static void lsp_pinfo_dtor()
+{
+	if (!lsp_pinfo)
+		return;
+
+	free(lsp_pinfo->cmd_line);
+	lsp_argv_dtor(lsp_pinfo->argv);
+
+	free(lsp_pinfo);
+	lsp_pinfo = NULL;
 }
 
 int main(int argc, char *argv[])
