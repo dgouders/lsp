@@ -2067,7 +2067,7 @@ static void lsp_file_init_stdin()
 
 	free(cf->name);
 	cf->name = name;
-	cf->ftype = LSP_FTYPE_MANPAGE;
+	cf->ftype |= LSP_FTYPE_MANPAGE;
 }
 
 /*
@@ -4552,7 +4552,7 @@ static void lsp_open_manpage(char *name)
 	if (cf->blksize)
 		return;
 
-	cf->ftype = LSP_FTYPE_MANPAGE;
+	cf->ftype |= LSP_FTYPE_MANPAGE;
 
 	lsp_exec_man();
 }
@@ -4838,7 +4838,7 @@ static void lsp_cmd_resize()
 
 	lsp_file_set_pos(cf->page_first);
 
-	if (cf->ftype == LSP_FTYPE_MANPAGE)
+	if (cf->ftype & LSP_FTYPE_MANPAGE)
 		lsp_file_reload();
 
 	struct file_t *here = cf->next;
@@ -4846,7 +4846,7 @@ static void lsp_cmd_resize()
 	/* Mark other manual pages in the ring for reload as soon as they become
 	   current. */
 	while (here != cf) {
-		if (here->ftype == LSP_FTYPE_MANPAGE)
+		if (here->ftype & LSP_FTYPE_MANPAGE)
 			here->do_reload = true;
 		here = here->next;
 	}
@@ -4900,7 +4900,7 @@ static char *lsp_man_get_section(off_t pos)
 	lsp_reposition.words = 0;
 	lsp_reposition.elines = 0;
 
-	if (cf->ftype != LSP_FTYPE_MANPAGE)
+	if (!(cf->ftype & LSP_FTYPE_MANPAGE))
 		lsp_error("%s: file \"%s\" is not a manual page.", __func__, cf->name);
 
 	lsp_file_set_pos(pos);
@@ -5067,7 +5067,7 @@ static void lsp_man_reposition(char *section)
 static void lsp_file_reload()
 {
 	/* We reload manual pages only. */
-	if (cf->ftype == LSP_FTYPE_MANPAGE) {
+	if (cf->ftype & LSP_FTYPE_MANPAGE) {
 		char *saved_man_section = lsp_man_get_section(cf->page_first);
 
 		lsp_file_reset();
@@ -5482,7 +5482,7 @@ static void lsp_create_status_line()
 
 	wattr_set(lsp_win, A_STANDOUT, LSP_REVERSE_PAIR, NULL);
 
-	if (cf->ftype == LSP_FTYPE_MANPAGE) {
+	if (cf->ftype & LSP_FTYPE_MANPAGE) {
 		mvwaddstr(lsp_win, lsp_maxy - 1, 0, "Manual page ");
 	}
 
