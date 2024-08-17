@@ -1033,7 +1033,7 @@ static void lsp_file_set_prev_line()
 /*
  * Peek forward to the next byte that getch() would give us.
  */
-int lsp_file_peek_fw()
+static int lsp_file_peek_fw()
 {
        int ch = lsp_file_getch();
        if (ch != -1)
@@ -3400,7 +3400,7 @@ static void lsp_file_search_next(lsp_mode_t search_mode)
 /*
  * Get full line that contains the given offset.
  */
-struct lsp_line_t *lsp_get_line_at_pos(off_t pos)
+static struct lsp_line_t *lsp_get_line_at_pos(off_t pos)
 {
 	struct lsp_line_t *line;
 	off_t old_pos = lsp_pos;
@@ -3414,7 +3414,7 @@ struct lsp_line_t *lsp_get_line_at_pos(off_t pos)
 	return line;
 }
 
-struct gref_t *lsp_get_gref_at_pos(regmatch_t pos)
+static struct gref_t *lsp_get_gref_at_pos(regmatch_t pos)
 {
 	struct lsp_line_t *line = lsp_get_line_at_pos(pos.rm_so);
 
@@ -4467,7 +4467,7 @@ static void lsp_wline_bw(int n)
  *
  * This function requires the file's data already read to EOF.
  */
-void lsp_goto_last_wpage()
+static void lsp_goto_last_wpage()
 {
 	int n = lsp_maxy - 1;
 	struct lsp_line_t *line = NULL;
