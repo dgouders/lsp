@@ -6337,14 +6337,10 @@ static void lsp_process_env_options()
 	if (lsp_options == NULL)
 		return;
 
-	/* Remove leading white-space */
-	size_t i;
-
-	for (i = 0; isspace(lsp_options[i]); i++)
-		;		/* just count */
-
-	if (i != 0)
-		memmove(lsp_options, lsp_options + i, (strlen(lsp_options) + 1) - i);
+	/* Remove leading white-space - without modifying lsp_options which is
+	 * owned by getenv(). */
+	while (isspace(lsp_options[0]))
+		lsp_options++;
 
 	/* We're done if white-space was the only content. */
 	if (lsp_options[0] == '\0')
