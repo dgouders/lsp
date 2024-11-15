@@ -2415,8 +2415,6 @@ static int lsp_init_screen()
 
 	wattr_set(lsp_win, A_NORMAL, LSP_DEFAULT_PAIR, 0);
 
-	keypad(lsp_win, TRUE);
-
 	return 0;
 }
 
