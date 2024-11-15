@@ -2455,16 +2455,16 @@ static void lsp_file_set_pos(off_t pos)
 }
 
 /*
- * Find previous match in file.
+ * Find last match in line.
  *
- * Searching backwards means to find all matches in a line and return
- * the last one!
+ * This function is used in searching backwards.
+ * The given line must already be prepared for the correct start/continuation of
+ * the search, i.e. already handled matches or any text following the start
+ * position must have been cut off the tail of the line prior to calling this
+ * function.
  *
- * lsp_line must already be prepared for the correct
- * start/continuation of the search, i.e. cut off tail of already
- * found matches.
  */
-static regmatch_t lsp_search_find_prev_match(struct lsp_line_t **line)
+static regmatch_t lsp_line_get_last_match(struct lsp_line_t **line)
 {
 	int ret;
 	regmatch_t pmatch[1];
@@ -3289,7 +3289,7 @@ static void lsp_cmd_search_bw(lsp_mode_t search_mode)
 
 	lsp_mode_set(search_mode);
 
-	regmatch_t pos = lsp_search_find_prev_match(&line);
+	regmatch_t pos = lsp_line_get_last_match(&line);
 	lsp_line_dtor(line);
 
 	if (lsp_is_no_match(pos)) {
