@@ -3183,9 +3183,9 @@ static void lsp_cmd_search(bool get_string)
 	cf->regex_p = lsp_search_regex;
 
 	if (lsp_search_direction == LSP_FW)
-		lsp_file_search_next(LSP_SEARCH_MODE);
+		lsp_cmd_search_fw(LSP_SEARCH_MODE);
 	else
-		lsp_file_search_prev(LSP_SEARCH_MODE);
+		lsp_cmd_search_bw(LSP_SEARCH_MODE);
 }
 
 static void lsp_cmd_search_refs()
@@ -3195,9 +3195,9 @@ static void lsp_cmd_search_refs()
 	cf->regex_p = lsp_refs_regex;
 
 	if (lsp_search_direction == LSP_FW)
-		lsp_file_search_next(LSP_REFS_MODE);
+		lsp_cmd_search_fw(LSP_REFS_MODE);
 	else
-		lsp_file_search_prev(LSP_REFS_MODE);
+		lsp_cmd_search_bw(LSP_REFS_MODE);
 }
 
 static bool lsp_is_no_match(regmatch_t match)
@@ -3248,7 +3248,7 @@ static void lsp_file_set_current_match(regmatch_t match)
 /*
  * Search backwards for pattern.
  */
-static void lsp_file_search_prev(lsp_mode_t search_mode)
+static void lsp_cmd_search_bw(lsp_mode_t search_mode)
 {
 	struct lsp_line_t *line = NULL;
 
@@ -3326,7 +3326,7 @@ static void lsp_line_cut_tail(struct lsp_line_t *line, off_t t_pos)
 /*
  * Find next match for pattern.
  */
-static void lsp_file_search_next(lsp_mode_t search_mode)
+static void lsp_cmd_search_fw(lsp_mode_t search_mode)
 {
 	lsp_prompt = "Searching...";
 	lsp_create_status_line();
@@ -5927,7 +5927,7 @@ static void lsp_workhorse()
 			if (lsp_search_regex) {
 				cf->regex_p = lsp_search_regex;
 
-				lsp_file_search_next(LSP_SEARCH_MODE);
+				lsp_cmd_search_fw(LSP_SEARCH_MODE);
 			} else {
 				if (lsp_mode_is_toc())
 					cf->toc = cf->toc_first;
@@ -5946,7 +5946,7 @@ static void lsp_workhorse()
 			if (lsp_search_regex) {
 				cf->regex_p = lsp_search_regex;
 
-				lsp_file_search_prev(LSP_SEARCH_MODE);
+				lsp_cmd_search_bw(LSP_SEARCH_MODE);
 			} else {
 				if (lsp_mode_is_toc())
 					cf->toc = cf->toc_first;
