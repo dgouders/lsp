@@ -3140,6 +3140,9 @@ static void lsp_cmd_search(bool get_string)
 		echo();
 		mvwgetnstr(lsp_win, lsp_maxy - 1, 1, lsp_search_string,
 			   sizeof(lsp_search_string));
+
+		lsp_remove_bs_from_string(lsp_search_string);
+
 		noecho();
 		curs_set(0);
 	}
@@ -5388,6 +5391,29 @@ static void lsp_apropos_create_grefs()
 	}
 }
 
+/*
+ * When reading strings using wgetnstr(), they can contain backspaces.
+ * Remove them by correcting the string the way those backspaces were meant.
+ */
+static void lsp_remove_bs_from_string(char *s)
+{
+	char *tmp = s;
+
+	while (*tmp) {
+		if (*tmp == '\b') {
+			ssize_t len = 1;
+
+			if (tmp > s) {
+				tmp--;
+				len = 2;
+			}
+
+			memmove(tmp, tmp + len, strlen(tmp + len) + 1);
+		} else
+			tmp++;
+	}
+}
+
 static void lsp_cmd_open_manpage()
 {
 	char manpage_name[256];
@@ -5408,6 +5434,8 @@ static void lsp_cmd_open_manpage()
 	wgetnstr(lsp_win, manpage_name, sizeof(manpage_name));
 	noecho();
 	curs_set(0);
+
+	lsp_remove_bs_from_string(manpage_name);
 
 	lsp_open_manpage(manpage_name);
 }

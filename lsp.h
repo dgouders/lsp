@@ -309,6 +309,7 @@ static void			lsp_process_env_open(void);
 static char *			lsp_read_manpage_name(void);
 static void *			lsp_realloc(void *, size_t);
 static bool			lsp_ref_is_valid(struct gref_t *);
+static void			lsp_remove_bs_from_string(char *);
 static void			lsp_wline_bw(int);
 static void			lsp_wline_fw(int);
 static void			lsp_search_align_page_to_match(void);
