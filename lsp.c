@@ -754,7 +754,7 @@ static bool lsp_is_at_bol()
  * We also implemented some heuristics to do something useful with C code
  * (i.e. show function-headers), but that is highly experimental!
  */
-static void lsp_file_create_toc()
+static void lsp_toc_ctor()
 {
 	if (cf->toc) {
 		/* TOC already exists. */
@@ -2548,9 +2548,9 @@ static regmatch_t lsp_line_get_last_match(struct lsp_line_t **line)
 static regmatch_t lsp_search_next()
 {
 	if (lsp_mode_is_toc())
-		return lsp_search_toc_next();
+		return lsp_toc_search_next();
 	else
-		return lsp_search_file_next();
+		return lsp_file_search_next();
 }
 
 /*
@@ -2558,7 +2558,7 @@ static regmatch_t lsp_search_next()
  *
  * find first match for search pattern
  */
-static regmatch_t lsp_search_toc_next()
+static regmatch_t lsp_toc_search_next()
 {
 	int ret;
 	regmatch_t pmatch[1];
@@ -2621,7 +2621,7 @@ static regmatch_t lsp_search_toc_next()
  *
  * find first match for search pattern
  */
-static regmatch_t lsp_search_file_next()
+static regmatch_t lsp_file_search_next()
 {
 	int ret;
 	regmatch_t pmatch[1];
@@ -2902,7 +2902,7 @@ static bool lsp_ref_is_valid(struct gref_t *gref)
 		char *current_cf = cf->name;
 		int current_mode = cf->mode;
 
-		lsp_cmd_create_apropos();
+		lsp_cmd_apropos();
 
 		cf = lsp_file_find(current_cf);
 		lsp_mode_set(current_mode);
@@ -2934,7 +2934,7 @@ static bool lsp_ref_is_valid(struct gref_t *gref)
 		lsp_error("%s: no %% character in verify command.", __func__);
 
 	/* Extract name and section from gref name. */
-	struct man_id m_id = lsp_create_man_id(gref->name);
+	struct man_id m_id = lsp_man_id_ctor(gref->name);
 
 	if (cptr[0] == 'n') {
 		cptr[0] = 's';
@@ -2945,7 +2945,7 @@ static bool lsp_ref_is_valid(struct gref_t *gref)
 		sprintf(command, format, m_id.section, m_id.name);
 	}
 
-	lsp_delete_man_id(&m_id);
+	lsp_man_id_dtor(&m_id);
 
 	ret = system(command);
 
@@ -2972,7 +2972,7 @@ static bool lsp_ref_is_valid(struct gref_t *gref)
  *
  * Return the created structure.
  */
-static struct man_id lsp_create_man_id(const char *s)
+static struct man_id lsp_man_id_ctor(const char *s)
 {
 	struct man_id m_id;
 
@@ -3048,7 +3048,7 @@ finish:
 /*
  * Free memory used by a man_id.
  */
-static void lsp_delete_man_id(struct man_id *m_id)
+static void lsp_man_id_dtor(struct man_id *m_id)
 {
 	if (!m_id)
 		return;
@@ -4563,7 +4563,7 @@ static void lsp_open_manpage(char *name)
  *
  * We expect a format string that contains exactly one "%s" and one "%n"
  * and a string that specifies the manual page to load, e.g. "man.1"; for other
- * possible formats see lsp_create_man_id().
+ * possible formats see lsp_man_id_ctor().
  */
 static char** lsp_create_man_argv(char *format, char *str)
 {
@@ -4574,7 +4574,7 @@ static char** lsp_create_man_argv(char *format, char *str)
 		  __func__, format, str);
 
 	/* Extract name and section from given str. */
-	m_id = lsp_create_man_id(str);
+	m_id = lsp_man_id_ctor(str);
 
 	/* Calculate length of expanded format string; we begin with the length
 	 * of the format minus 4 bytes for %n and %s (which we will replace)
@@ -4640,7 +4640,7 @@ static char** lsp_create_man_argv(char *format, char *str)
 	lsp_debug("%s: expanded format string = \"%s\"", __func__, format_dup);
 
 	argv = lsp_str2argv(format_dup);
-	lsp_delete_man_id(&m_id);
+	lsp_man_id_dtor(&m_id);
 	free(format_dup);
 
 	return argv;
@@ -5101,7 +5101,7 @@ static void lsp_file_do_reload()
 		   resize happened. */
 		old_mode = cf->mode;
 		lsp_mode_unset_toc();
-		lsp_file_create_toc();
+		lsp_toc_ctor();
 		cf->mode = old_mode;
 	}
 }
@@ -5320,7 +5320,7 @@ static char *lsp_cmd_select_file()
  * In combination with TAB, this can act as an entry point to access
  * any manual page.
  */
-static void lsp_cmd_create_apropos()
+static void lsp_cmd_apropos()
 {
 	lsp_file_add("Apropos", true);
 
@@ -5763,7 +5763,7 @@ static void lsp_workhorse()
 			break;
 		case 'a':
 			lsp_mode_set_initial();
-			lsp_cmd_create_apropos();
+			lsp_cmd_apropos();
 			lsp_display_page();
 			break;
 		case 'h':
@@ -6007,7 +6007,7 @@ static void lsp_workhorse()
 				lsp_toc_rewind(cf->toc_first->pos);
 			} else if (cf->size != 0) {
 				/* create TOC only for non-empty files. */
-				lsp_file_create_toc();
+				lsp_toc_ctor();
 				lsp_mode_set_toc();
 			} else
 				lsp_prompt = "No TOC for empty files";
