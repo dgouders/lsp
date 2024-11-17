@@ -196,7 +196,6 @@ static struct file_t *		lsp_file_ctor(void);
 static void			lsp_file_data_ctor(size_t);
 static void			lsp_file_data_dtor(struct data_t *);
 static ssize_t			lsp_file_do_read(unsigned char *, size_t);
-static void			lsp_file_do_reload(void);
 static void			lsp_file_dtor(struct file_t *);
 static struct file_t *		lsp_file_find(char *);
 static void			lsp_file_forward_empty_lines(size_t);

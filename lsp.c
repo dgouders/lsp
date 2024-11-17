@@ -5100,7 +5100,22 @@ static void lsp_file_reload()
 
 		lsp_file_reset();
 
-		lsp_file_do_reload();
+		lsp_exec_man();
+
+		/* If there was a TOC all its entries now have invalid
+		   pointers (at a high possibility).  Rebuild it. */
+		if (cf->toc) {
+			lsp_mode_t old_mode;
+
+			lsp_toc_dtor(cf);
+			/* A TOC must be created in neutral mode (!toc).
+			   But we also want to stay in TOC mode if this is where
+			   the resize happened. */
+			old_mode = cf->mode;
+			lsp_mode_unset_toc();
+			lsp_toc_ctor();
+			cf->mode = old_mode;
+		}
 
 		cf->do_reload = false;
 
@@ -5110,26 +5125,6 @@ static void lsp_file_reload()
 
 		cf->page_first = lsp_pos;
 		lsp_set_no_current_match();
-	}
-}
-
-static void lsp_file_do_reload()
-{
-	lsp_mode_t old_mode;
-
-	lsp_exec_man();
-
-	/* If there was a TOC all its entries now have invalid
-	   pointers (at a high possibility).  Rebuild it. */
-	if (cf->toc) {
-		lsp_toc_dtor(cf);
-		/* A TOC must be created in neutral mode (!toc).
-		   But we also want to stay in TOC mode if this is where the
-		   resize happened. */
-		old_mode = cf->mode;
-		lsp_mode_unset_toc();
-		lsp_toc_ctor();
-		cf->mode = old_mode;
 	}
 }
 
