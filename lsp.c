@@ -2293,6 +2293,36 @@ out:
 	free(path);
 }
 
+static void lsp_mark_regular_file()
+{
+	struct stat statbuf;
+
+	if (stat(cf->name, &statbuf) == -1)
+		lsp_error("fstat(%s): %s", cf->name, strerror(errno));
+
+	if (S_ISREG(statbuf.st_mode))
+		cf->ftype |= LSP_FTYPE_REGULAR;
+}
+
+/*
+ * Prepare current cf for regular use.
+ */
+static void lsp_file_init()
+{
+	lsp_open_file(cf->name);
+
+	if (cf->fd == -1)
+		lsp_error("%s: %s: %s", __func__, cf->name, strerror(errno));
+
+	lsp_mark_regular_file();
+
+	lsp_file_set_size();
+
+	lsp_file_set_blksize();
+
+	lsp_file_add_block();
+}
+
 /*
  * Initialize ring of input files
  * Open the first given file (or stdin) for reading.
@@ -2311,16 +2341,7 @@ static void lsp_file_init_ring()
 
 	/* Initialize all input files in the ring */
 	do {
-		lsp_open_file(cf->name);
-
-		if (cf->fd == -1)
-			lsp_error("%s: %s: %s", __func__, cf->name, strerror(errno));
-
-		lsp_file_set_size();
-
-		lsp_file_set_blksize();
-
-		lsp_file_add_block();
+		lsp_file_init();
 
 		cf = cf->next;
 	} while (cf != ring_start);

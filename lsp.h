@@ -203,6 +203,7 @@ static void			lsp_file_forward_empty_lines(size_t);
 static void			lsp_file_forward_words(size_t);
 static struct lsp_line_t *	lsp_file_get_prev_line(void);
 static int			lsp_file_getch(void);
+static void			lsp_file_init(void);
 static void			lsp_file_init_ring(void);
 static void			lsp_file_init_stdin(void);
 static void			lsp_file_inject_line(const char *);
@@ -271,6 +272,7 @@ static int			lsp_man_goto_section(char *);
 static struct man_id		lsp_man_id_ctor(const char *);
 static void			lsp_man_id_dtor(struct man_id *);
 static void			lsp_man_reposition(char *);
+static void			lsp_mark_regular_file(void);
 static uint			lsp_mblen(const char *, size_t);
 static size_t			lsp_mbtowc(wchar_t *, const char *, size_t);
 static char *			lsp_mdup2str(const char *, size_t);
@@ -431,7 +433,8 @@ typedef enum lsp_flag lsp_flag_t;
 
 enum lsp_ftype {
 	LSP_FTYPE_OTHER = 0,
-	LSP_FTYPE_MANPAGE = 1
+	LSP_FTYPE_MANPAGE = 1,
+	LSP_FTYPE_REGULAR = 4
 };
 
 typedef enum lsp_ftype lsp_ftype_t;
