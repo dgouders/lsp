@@ -6948,13 +6948,13 @@ int main(int argc, char *argv[])
 {
 	lsp_init();
 
-	lsp_init_screen();
-
 	lsp_process_env_open();
 
 	lsp_process_env_options();
 
 	lsp_process_options(argc, argv);
+
+	lsp_init_screen();
 
 	lsp_file_init_ring();
 
