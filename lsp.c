@@ -2046,6 +2046,7 @@ static void lsp_file_init_stdin()
 	lsp_file_add("", 0);
 
 	cf->size = LSP_FSIZE_UNKNOWN;
+	cf->ftype |= LSP_FTYPE_STDIN;
 
 	/* Move stdin to something > 2 and and then use the controlling terminal
 	 * as the one we use for the user to communicate with us. */
@@ -3129,6 +3130,84 @@ static char *lsp_search_compile_regex(lsp_mode_t search_mode)
 static void lsp_set_no_current_match()
 {
 	cf->current_match = lsp_no_match;
+}
+
+static bool lsp_file_is_regular()
+{
+	return cf->ftype & LSP_FTYPE_REGULAR;
+}
+
+static bool lsp_file_is_stdin()
+{
+	return cf->ftype & LSP_FTYPE_STDIN;
+}
+
+/*
+ * Read content of file up to given pos or EOF, if the file is smaller.
+ */
+static void lsp_file_read_to_pos(off_t pos)
+{
+	while (!LSP_EOF && cf->seek < pos)
+		lsp_file_add_block();
+}
+
+/*
+ * Check if the given file is (still) readable.
+ */
+static bool lsp_is_readable(char *path)
+{
+	return access(path, R_OK) == 0;
+}
+
+/*
+ * Reread current regular file and try to position to the page last shown.
+ */
+static void lsp_file_reread()
+{
+	/* Save position of last page shown. */
+	off_t old_page_first = cf->page_first;
+
+	if (!lsp_is_readable(cf->name)) {
+		lsp_prompt = "File is no longer readable.";
+		lsp_file_set_pos(cf->page_first);
+		return;
+	}
+
+	lsp_file_reset();
+	lsp_file_init();
+
+	/* Try to reread to the position we displayed last. */
+	lsp_file_read_to_pos(old_page_first);
+
+	lsp_debug("%s: reread file %s to pos %ld", __func__, cf->name, cf->size);
+
+	/* If the file is now smaller, position to its last page. */
+	if (cf->seek <= old_page_first) {
+		lsp_cmd_goto_end();
+		cf->page_first = lsp_pos;
+	} else
+		cf->page_first = old_page_first;
+
+	lsp_file_set_pos(cf->page_first);
+	return;
+}
+
+/*
+ * Reload content of current file.
+ *
+ * Currently, explicit reloading is supported only for regular files.
+ *
+ */
+static void lsp_cmd_reload()
+{
+	if (lsp_file_is_regular()) {
+		lsp_file_reread();
+		return;
+	}
+
+	lsp_file_set_pos(cf->page_first);
+	lsp_prompt = lsp_reload_not_supported;
+	return;
 }
 
 /*
@@ -6067,6 +6146,10 @@ static void lsp_workhorse()
 					return;
 				}
 			}
+			lsp_display_page();
+			break;
+		case 'r':
+			lsp_cmd_reload();
 			lsp_display_page();
 			break;
 		case ERR:

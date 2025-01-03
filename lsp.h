@@ -166,6 +166,7 @@ static void			lsp_cmd_goto_start(void);
 static void			lsp_cmd_kill_file(void);
 static void			lsp_cmd_mouse(void);
 static void			lsp_cmd_open_manpage(void);
+static void			lsp_cmd_reload(void);
 static void			lsp_cmd_resize(void);
 static void			lsp_cmd_search(bool);
 static void			lsp_cmd_search_bw(lsp_mode_t);
@@ -206,6 +207,8 @@ static void			lsp_file_init(void);
 static void			lsp_file_init_ring(void);
 static void			lsp_file_init_stdin(void);
 static void			lsp_file_inject_line(const char *);
+static bool			lsp_file_is_regular(void);
+static bool			lsp_file_is_stdin(void);
 static void			lsp_file_kill(void);
 static void			lsp_file_move_here(struct file_t *);
 static int			lsp_file_peek_bw(void);
@@ -213,7 +216,9 @@ static int			lsp_file_peek_fw(void);
 static size_t			lsp_file_pos2line(off_t);
 static void			lsp_file_read_all(void);
 static ssize_t			lsp_file_read_block(size_t);
+static void			lsp_file_read_to_pos(off_t);
 static void			lsp_file_reload(void);
+static void			lsp_file_reread(void);
 static void			lsp_file_reset(void);
 static void			lsp_file_ring_dtor(void);
 static regmatch_t		lsp_file_search_next(void);
@@ -255,6 +260,7 @@ static bool			lsp_is_a_match(regmatch_t);
 static bool			lsp_is_at_bol(void);
 static bool			lsp_is_manpage(void);
 static bool			lsp_is_no_match(regmatch_t);
+static bool			lsp_is_readable(char *);
 static bool			lsp_is_sgr_sequence(const char *);
 static void			lsp_line_add_wlines(struct lsp_line_t *);
 static size_t			lsp_line_count_words(struct lsp_line_t *);
@@ -431,8 +437,9 @@ enum lsp_flag {
 typedef enum lsp_flag lsp_flag_t;
 
 enum lsp_ftype {
-	LSP_FTYPE_OTHER = 0,
+	LSP_FTYPE_OTHER   = 0,
 	LSP_FTYPE_MANPAGE = 1,
+	LSP_FTYPE_STDIN   = 2,	/* We were started with data coming from stdin. */
 	LSP_FTYPE_REGULAR = 4
 };
 
@@ -550,6 +557,7 @@ unsigned char lsp_shift;
 
 /* xxx put into lsp_init() or so */
 char	*lsp_not_found = "Pattern not found";
+char    *lsp_reload_not_supported = "Reload not supported.";
 
 /* String from LSP_OPEN or LESSOPEN environment variable. */
 char *lsp_env_open;
