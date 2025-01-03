@@ -5094,38 +5094,38 @@ static void lsp_man_reposition(char *section)
 
 static void lsp_file_reload()
 {
-	/* We reload manual pages only. */
-	if (cf->ftype & LSP_FTYPE_MANPAGE) {
-		char *saved_man_section = lsp_man_get_section(cf->page_first);
+	char *saved_man_section;
 
-		lsp_file_reset();
+	if (lsp_is_manpage())
+		saved_man_section = lsp_man_get_section(cf->page_first);
 
-		lsp_exec_man();
+	lsp_file_reset();
 
-		/* If there was a TOC all its entries now have invalid
-		   pointers (at a high possibility).  Rebuild it. */
-		if (cf->toc) {
-			lsp_mode_t old_mode;
+	lsp_exec_man();
 
-			lsp_toc_dtor(cf);
-			/* A TOC must be created in neutral mode (!toc).
-			   But we also want to stay in TOC mode if this is where
-			   the resize happened. */
-			old_mode = cf->mode;
-			lsp_mode_unset_toc();
-			lsp_toc_ctor();
-			cf->mode = old_mode;
-		}
+	/* If there was a TOC all its entries now have invalid
+	   pointers (at a high possibility).  Rebuild it. */
+	if (cf->toc) {
+		lsp_mode_t old_mode;
 
-		cf->do_reload = false;
-
-		lsp_man_reposition(saved_man_section);
-
-		free(saved_man_section);
-
-		cf->page_first = lsp_pos;
-		lsp_set_no_current_match();
+		lsp_toc_dtor(cf);
+		/* A TOC must be created in neutral mode (!toc).
+		   But we also want to stay in TOC mode if this is where
+		   the resize happened. */
+		old_mode = cf->mode;
+		lsp_mode_unset_toc();
+		lsp_toc_ctor();
+		cf->mode = old_mode;
 	}
+
+	cf->do_reload = false;
+
+	lsp_man_reposition(saved_man_section);
+
+	free(saved_man_section);
+
+	cf->page_first = lsp_pos;
+	lsp_set_no_current_match();
 }
 
 /*
