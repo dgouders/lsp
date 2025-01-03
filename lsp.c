@@ -5171,12 +5171,15 @@ static void lsp_man_reposition(char *section)
 	}
 }
 
+/*
+ * Currently, only manual pages get reloaded -- no need to check if the current
+ * file (cf) is a manual page.
+ */
 static void lsp_file_reload()
 {
 	char *saved_man_section;
 
-	if (lsp_is_manpage())
-		saved_man_section = lsp_man_get_section(cf->page_first);
+	saved_man_section = lsp_man_get_section(cf->page_first);
 
 	lsp_file_reset();
 
