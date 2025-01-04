@@ -2400,7 +2400,7 @@ static int lsp_init_screen()
 
 	getmaxyx(lsp_win, lsp_maxy, lsp_maxx);
 
-	if (!has_colors())
+	if (!has_colors() || !can_change_color())
 		lsp_color = false;
 
 	if (lsp_color) {
