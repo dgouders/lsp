@@ -6852,7 +6852,7 @@ static char *lsp_run_command2str(char *cmd)
 	 * Read command output and store it in the result string.
 	 */
 	while (!feof(fp)) {
-		size_t chunk = (buffer + nread) - (buffer + b_len);
+		size_t chunk = b_len - nread;
 
 		if (!chunk) {
 			b_len += r_len;
