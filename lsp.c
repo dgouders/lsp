@@ -4938,11 +4938,22 @@ static bool lsp_is_manpage()
 
 static void lsp_cmd_resize()
 {
-	getmaxyx(lsp_win, lsp_maxy, lsp_maxx);
-
-	lsp_debug("%s: new geometry is %ldx%ld", __func__, lsp_maxx, lsp_maxy);
+	int old_maxx = lsp_maxx;
 
 	lsp_file_set_pos(cf->page_first);
+
+	getmaxyx(lsp_win, lsp_maxy, lsp_maxx);
+
+	/*
+	 * There is no need to reload manual pages if the width of the window
+	 * didn't change.
+	 */
+	if (old_maxx == lsp_maxx) {
+		lsp_debug("%s: no change in width.", __func__);
+		return;
+	}
+
+	lsp_debug("%s: new geometry is %ldx%ld", __func__, lsp_maxx, lsp_maxy);
 
 	if (lsp_is_manpage())
 		lsp_file_reload();
