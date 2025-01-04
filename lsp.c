@@ -4654,6 +4654,7 @@ static void lsp_open_manpage(char *name)
 		return;
 
 	cf->ftype |= LSP_FTYPE_MANPAGE;
+	cf->ftype |= LSP_FTYPE_LSPMAN;
 
 	lsp_exec_man();
 }
@@ -4931,6 +4932,26 @@ static void lsp_cmd_kill_file()
 	lsp_file_kill();
 }
 
+/*
+ * For now, an automatically reloadable file needs to meet the following
+ * conditions:
+ *
+ * 1) It must be a manual page.
+ * 2) It must come from stdin and our parent process must be "man"
+ *    or it must be a manual page that we opened.
+ */
+static bool lsp_file_is_auto_reloadable()
+{
+	return (lsp_is_manpage() &&
+		((lsp_file_is_stdin() && LSP_STR_EQ(lsp_pinfo->argv[0], "man")) ||
+		 lsp_file_is_lspman()));
+}
+
+static bool lsp_file_is_lspman()
+{
+	return cf->ftype & LSP_FTYPE_LSPMAN;
+}
+
 static bool lsp_is_manpage()
 {
 	return cf->ftype & LSP_FTYPE_MANPAGE;
@@ -4955,7 +4976,7 @@ static void lsp_cmd_resize()
 
 	lsp_debug("%s: new geometry is %ldx%ld", __func__, lsp_maxx, lsp_maxy);
 
-	if (lsp_is_manpage())
+	if (lsp_file_is_auto_reloadable())
 		lsp_file_reload();
 
 	struct file_t *here = cf;
@@ -4964,7 +4985,7 @@ static void lsp_cmd_resize()
 	/* Mark other manual pages in the ring for reload as soon as they become
 	   current. */
 	while (here != cf) {
-		if (lsp_is_manpage())
+		if (lsp_file_is_auto_reloadable())
 			cf->do_reload = true;
 		cf = cf->next;
 	}

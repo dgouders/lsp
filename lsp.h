@@ -207,7 +207,9 @@ static void			lsp_file_init(void);
 static void			lsp_file_init_ring(void);
 static void			lsp_file_init_stdin(void);
 static void			lsp_file_inject_line(const char *);
+static bool			lsp_file_is_lspman(void);
 static bool			lsp_file_is_regular(void);
+static bool			lsp_file_is_auto_reloadable(void);
 static bool			lsp_file_is_stdin(void);
 static void			lsp_file_kill(void);
 static void			lsp_file_move_here(struct file_t *);
@@ -440,7 +442,8 @@ enum lsp_ftype {
 	LSP_FTYPE_OTHER   = 0,
 	LSP_FTYPE_MANPAGE = 1,
 	LSP_FTYPE_STDIN   = 2,	/* We were started with data coming from stdin. */
-	LSP_FTYPE_REGULAR = 4
+	LSP_FTYPE_REGULAR = 4,
+	LSP_FTYPE_LSPMAN  = 8	/* A manual page we opened */
 };
 
 typedef enum lsp_ftype lsp_ftype_t;
