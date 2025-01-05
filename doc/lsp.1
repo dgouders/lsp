@@ -40,6 +40,14 @@ usually text \(em no
 no
 .MR \%less 1 .
 .P
+If
+.I lsp
+is called with standard output not being a terminal device (e.g. in a
+pipe or with redirected output),
+.I lsp
+replaces itself with
+.MR cat 1 .
+.P
 The given files are opened if file names are given as options.
 Otherwise
 .I lsp

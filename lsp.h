@@ -155,6 +155,7 @@ struct lsp_parent_info *lsp_pinfo;
 static void			lsp_apropos_create_grefs(void);
 static void			lsp_argv_dtor(char **);
 static int			lsp_argv_size(char **);
+static void			lsp_become_a_cat(char **);
 static size_t			lsp_buffer_free_size(void);
 static void *			lsp_calloc(size_t, size_t);
 static bool			lsp_cm_cursor_is_valid(void);
