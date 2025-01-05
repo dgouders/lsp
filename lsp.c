@@ -6944,8 +6944,20 @@ static void lsp_pinfo_dtor()
 	lsp_pinfo = NULL;
 }
 
+/*
+ * Replace us with cat(1).
+ */
+static void lsp_become_a_cat(char *argv[])
+{
+	argv[0] = "cat";
+	execvp("cat", argv);
+}
+
 int main(int argc, char *argv[])
 {
+	if (!isatty(STDOUT_FILENO))
+		lsp_become_a_cat(argv);
+
 	lsp_init();
 
 	lsp_process_env_open();
