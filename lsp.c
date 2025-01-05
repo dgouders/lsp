@@ -6951,6 +6951,8 @@ static void lsp_become_a_cat(char *argv[])
 {
 	argv[0] = "cat";
 	execvp("cat", argv);
+
+	lsp_error("execvp(\"cat\"): %s", strerror(errno));
 }
 
 int main(int argc, char *argv[])
