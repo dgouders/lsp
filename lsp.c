@@ -4432,6 +4432,62 @@ static void lsp_wline_fw(int n)
 	}
 }
 
+static void lsp_cmd_toc_cursor_bw()
+{
+	/* In TOC mode, line movement ends a search. */
+	lsp_mode_unset_highlight();
+
+	lsp_toc_rewind(cf->toc_first->pos);
+
+	if (cf->toc_cursor) {
+		/* Cursor not yet at top of current page. */
+		cf->toc_cursor--;
+		return;
+	}
+
+	/*
+	 * Cursor moves out of current page.
+	 */
+
+	if (cf->toc_first->prev) {
+		/* We are not on first page.
+		   Go 1/2 page up. */
+		lsp_toc_bw(lsp_maxy / 2);
+		cf->toc_cursor = lsp_maxy / 2 - 1;
+	}
+}
+
+static void lsp_cmd_toc_cursor_fw()
+{
+	/* In TOC mode, line movement ends a search. */
+	lsp_mode_unset_highlight();
+
+	if (!cf->toc_last) {
+		/*
+		 * We are on the last TOC page.
+		 * Make sure, active line stays within valid TOC entries.
+		 */
+		if (lsp_toc_get_offset_at_cursor() < cf->toc->pos)
+			cf->toc_cursor++;
+		lsp_toc_rewind(cf->toc_first->pos);
+		return;
+	}
+
+	/*
+	 * We are not on last TOC page.
+	 */
+
+	lsp_toc_rewind(cf->toc_first->pos);
+
+	cf->toc_cursor++;
+
+	if (cf->toc_cursor >= lsp_maxy - 1) {
+		/* Scroll TOC 1/2 page forward. */
+		lsp_toc_fw(lsp_maxy / 2);
+		cf->toc_cursor = lsp_maxy / 2 - 1;
+	}
+}
+
 /*
  * Move forward n lines.
  */
@@ -5616,13 +5672,19 @@ static void lsp_cmd_mouse()
 
 	/* Wheel up => previous page */
 	if (BUTTON_PRESS(event.bstate, 4)) {
-		lsp_cmd_backward(1);
+		if (lsp_mode_is_toc())
+			lsp_cmd_toc_cursor_bw();
+		else
+			lsp_cmd_backward(1);
 		return;
 	}
 
 	/* Wheel down => next page */
 	if (BUTTON_PRESS(event.bstate, 5)) {
-		lsp_cmd_forward(1);
+		if (lsp_mode_is_toc())
+			lsp_cmd_toc_cursor_fw();
+		else
+			lsp_cmd_forward(1);
 		return;
 	}
 
@@ -6031,27 +6093,10 @@ static void lsp_workhorse()
 		case KEY_DOWN:
 			lsp_cursor_set = false;
 
-			if (!lsp_mode_is_toc()) {
+			if (lsp_mode_is_toc())
+				lsp_cmd_toc_cursor_fw();
+			else
 				lsp_cmd_forward(1);
-			} else {
-				/* In TOC mode, line movement ends a search. */
-				lsp_mode_unset_highlight();
-				if (cf->toc->next) {
-					lsp_toc_rewind(cf->toc_first->pos);
-
-					if (cf->toc_cursor + 1 < lsp_maxy - 1) {
-						cf->toc_cursor++;
-					} else {
-						lsp_toc_fw(lsp_maxy / 2);
-						cf->toc_cursor = lsp_maxy / 2 - 1;
-					}
-				} else {
-					if (lsp_toc_get_offset_at_cursor() <
-					    cf->toc->pos)
-						cf->toc_cursor++;
-					lsp_toc_rewind(cf->toc_first->pos);
-				}
-			}
 
 			lsp_display_page();
 			break;
@@ -6071,26 +6116,11 @@ static void lsp_workhorse()
 		case KEY_UP:
 			lsp_cursor_set = false;
 
-			if (lsp_mode_is_toc()) {
-				/* In TOC mode, line movement ends a search. */
-				lsp_mode_unset_highlight();
-
-				lsp_toc_rewind(cf->toc_first->pos);
-
-				if (cf->toc_cursor) {
-					/* Cursor stays on page */
-					cf->toc_cursor--;
-				} else
-					/* Cursor moves out of page */
-					if (cf->toc_first->prev) {
-						/* We are not on first page.
-						   Go 1/2 page up. */
-						lsp_toc_bw(lsp_maxy / 2);
-						cf->toc_cursor = lsp_maxy / 2 - 1;
-					}
-			} else {
+			if (lsp_mode_is_toc())
+				lsp_cmd_toc_cursor_bw();
+			else
 				lsp_cmd_backward(1);
-			}
+
 			lsp_display_page();
 			break;
 		case 'n':
