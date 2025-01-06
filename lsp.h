@@ -173,6 +173,8 @@ static void			lsp_cmd_search(bool);
 static void			lsp_cmd_search_bw(lsp_mode_t);
 static void			lsp_cmd_search_fw(lsp_mode_t);
 static void			lsp_cmd_search_refs(void);
+static void			lsp_cmd_toc_cursor_bw(void);
+static void			lsp_cmd_toc_cursor_fw(void);
 static void			lsp_cmd_toggle_options(void);
 static void			lsp_cmd_visit_reference(void);
 static char *			lsp_cmd_select_file(void);
