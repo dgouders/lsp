@@ -6183,7 +6183,11 @@ static void lsp_workhorse()
 			} else if (cf->size != 0) {
 				/* create TOC only for non-empty files. */
 				lsp_toc_ctor();
-				lsp_mode_set_toc();
+				if (!cf->toc) {
+					lsp_prompt = "TOC would be empty";
+					lsp_file_set_pos(cf->page_first);
+				} else
+					lsp_mode_set_toc();
 			} else
 				lsp_prompt = "No TOC for empty files";
 
