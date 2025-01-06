@@ -5949,23 +5949,32 @@ static void lsp_workhorse()
 		case ' ':
 		case 'f':
 			lsp_cursor_set = false;
+			if (lsp_mode_is_toc()) {
+				if (cf->toc_last)
+					cf->toc_cursor = 0;
+				else
+					/* We stay on last TOC page. */
+					cf->toc = cf->toc_first;
+			}
 			lsp_display_page(); /* next page */
 			break;
 		case 'g':
 		case '<':
 			lsp_cursor_set = false;
-			if (lsp_mode_is_toc())
+			if (lsp_mode_is_toc()) {
 				lsp_toc_rewind(0);
-			else
+				cf->toc_cursor = 0;
+			} else
 				lsp_cmd_goto_start();
 			lsp_display_page();
 			break;
 		case 'G':
 		case '>':
 			lsp_cursor_set = false;
-			if (lsp_mode_is_toc())
+			if (lsp_mode_is_toc()) {
 				lsp_toc_rewind((off_t)-1);
-			else
+				cf->toc_cursor = 0;
+			} else
 				lsp_cmd_goto_end();
 			lsp_display_page();
 			break;
@@ -6051,6 +6060,7 @@ static void lsp_workhorse()
 			if (lsp_mode_is_toc()) {
 				lsp_toc_rewind(cf->toc_first->pos);
 				lsp_toc_bw(lsp_maxy - 1);
+				cf->toc_cursor = 0;
 			} else {
 				lsp_cursor_set = false;
 				lsp_cmd_backward(0); /* 0 == one page */
