@@ -891,6 +891,8 @@ static void lsp_toc_dtor(struct file_t *file)
 /*
  * Reposition TOC to entry to pos.
  *
+ * pos ==  0 means:
+ *    Position to the first TOC entry for the file.
  * pos == -1 means:
  *    Position it to the end so that a full last page can be
  *    displayed.
@@ -905,6 +907,9 @@ static void lsp_toc_rewind(off_t pos)
 		while (cf->toc->next)
 			cf->toc = cf->toc->next;
 		lsp_toc_bw(lsp_maxy - 2);
+	} else if (pos == 0) {
+		while (cf->toc->prev)
+			cf->toc = cf->toc->prev;
 	} else {
 		if (!lsp_pos_is_toc(pos))
 			lsp_error("%s: called with invalid TOC position %ld",
