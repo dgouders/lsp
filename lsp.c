@@ -5694,17 +5694,30 @@ static void lsp_cmd_mouse()
 */
 	/* Button 1 click -> place cursor at this position */
 	if (BUTTON_CLICK(event.bstate, 1)) {
-		lsp_cursor_y = event.y;
-		lsp_cursor_x = event.x;
-		lsp_cursor_set = true;
+		if (lsp_mode_is_toc()) {
+			cf->toc_cursor = event.y;
+			cf->toc = cf->toc_first;
+		} else {
+			lsp_cursor_y = event.y;
+			lsp_cursor_x = event.x;
+			lsp_cursor_set = true;
 
-		lsp_file_set_pos(cf->page_first);
+			lsp_file_set_pos(cf->page_first);
+		}
 		return;
 	}
 
-	/* Button 1 double click -> try to open reference if any at point */
+	/* Button 1 double click -> in TOC mode goto position in file. */
 	if (BUTTON_DOUBLE_CLICK(event.bstate, 1)) {
-		lsp_file_set_pos(cf->page_first);
+		if (lsp_mode_is_toc()) {
+			/* In TOC mode, show file at position of double clicked
+			 * TOC line. */
+			lsp_mode_unset_toc();
+			cf->toc_cursor = event.y;
+			lsp_file_set_pos(lsp_toc_get_offset_at_cursor());
+		} else
+			lsp_file_set_pos(cf->page_first);
+
 		return;
 	}
 
