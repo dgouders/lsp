@@ -3905,10 +3905,8 @@ static struct lsp_line_t *lsp_get_next_display_line()
 
 	if (lsp_mode_is_toc()) {
 		/* Search next TOC line with level <= active level. */
-		while (cf->toc->level > cf->current_toc_level) {
-			if (cf->toc->next)
-				cf->toc = cf->toc->next;
-		}
+		while (cf->toc->next && cf->toc->level > cf->current_toc_level)
+			cf->toc = cf->toc->next;
 
 		if (cf->toc->level > cf->current_toc_level) {
 			/* No more TOC entries in this level. */
