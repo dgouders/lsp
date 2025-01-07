@@ -742,6 +742,29 @@ static bool lsp_is_at_bol()
 }
 
 /*
+ * Shift the level of all TOC entries by the specified number.
+ * This function is needed to ensure we have level 0 TOC entries even if for the
+ * current file entries with that level weren't generated.
+ */
+static void lsp_toc_shift(int n)
+{
+	/* TOC levels are not yet reliable, so rewinds with
+	   positions != 0 could fail. */
+	struct toc_node_t *toc_save = cf->toc;
+
+	lsp_toc_rewind(0);
+
+	cf->toc->level -= n;
+
+	while (cf->toc->next) {
+		cf->toc = cf->toc->next;
+		cf->toc->level -= n;
+	}
+
+	cf->toc = toc_save;
+}
+
+/*
  * Create TOC for active file.
  *
  * We create three levels roughly containing lines with increasing
@@ -756,6 +779,10 @@ static bool lsp_is_at_bol()
  */
 static void lsp_toc_ctor()
 {
+	/* Record minimum level generated to later ensure
+	   we have minimum level 0. */
+	int min_level = 2;
+
 	if (cf->toc) {
 		/* TOC already exists. */
 		if (cf->toc_first)
@@ -785,14 +812,19 @@ static void lsp_toc_ctor()
 		    line->normalized[0] != '\t' &&
 		    line->normalized[0] != '{' &&
 		    line->normalized[0] != '}' &&
-		    line->normalized[0] != '\n')
+		    line->normalized[0] != '\n') {
+			min_level = 0;
 			lsp_file_toc_add(line, 0);
+		}
 
 		/* Level 1: all lines that start with three spaces. */
 		if (line->nlen > 3 &&
 		    LSP_STRN_EQ(line->normalized, "   ", 3) &&
-		    line->normalized[3] != ' ')
+		    line->normalized[3] != ' ') {
+			if (min_level > 1)
+				min_level = 1;
 			lsp_file_toc_add(line, 1);
+		}
 
 		/* Level 2: all lines starting with seven spaces and
 		   their following line with indentation of
@@ -821,6 +853,9 @@ static void lsp_toc_ctor()
 	lsp_line_dtor(line);
 
 	lsp_file_set_pos(pos_save);
+
+	if (cf->toc && min_level)
+		lsp_toc_shift(min_level);
 
 	lsp_toc_rewind(0);
 }

@@ -349,6 +349,7 @@ static int			lsp_toc_move_to_next(void);
 static int			lsp_toc_move_to_prev(void);
 static void			lsp_toc_rewind(off_t);
 static regmatch_t		lsp_toc_search_next(void);
+static void			lsp_toc_shift(int);
 static void			lsp_usage(const char *);
 static bool			lsp_validate_ref_at_pos(regmatch_t);
 static void			lsp_version(void);
