@@ -168,7 +168,7 @@ static void			lsp_cmd_kill_file(void);
 static void			lsp_cmd_mouse(void);
 static void			lsp_cmd_open_manpage(void);
 static void			lsp_cmd_reload(void);
-static void			lsp_cmd_resize(void);
+static void			lsp_cmd_resize(int);
 static void			lsp_cmd_search(bool);
 static void			lsp_cmd_search_bw(lsp_mode_t);
 static void			lsp_cmd_search_fw(lsp_mode_t);
