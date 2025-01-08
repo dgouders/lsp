@@ -5333,7 +5333,6 @@ static void lsp_file_reload()
 	free(saved_man_section);
 
 	cf->page_first = lsp_pos;
-	lsp_set_no_current_match();
 }
 
 /*
@@ -5353,8 +5352,7 @@ static void lsp_file_reset()
 	cf->getch_pos = 0;
 	cf->unaligned = 0;
 	cf->lines_count = 1;
-	cf->current_match = lsp_no_match;
-
+	lsp_set_no_current_match();
 }
 
 /*
