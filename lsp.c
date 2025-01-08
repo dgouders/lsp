@@ -4944,6 +4944,9 @@ static void lsp_exec_man()
 	ioctl(STDOUT_FILENO, TIOCGWINSZ, &winsize);
 	ioctl(STDOUT_FILENO, TCGETS, &termios);
 
+	if (lsp_do_line_numbers)
+		winsize.ws_col -= 8;
+
 	int ptmxfd;
 	pid_t pid = forkpty(&ptmxfd, NULL, &termios, &winsize);
 
@@ -5051,7 +5054,13 @@ static bool lsp_is_manpage()
 	return cf->ftype & LSP_FTYPE_MANPAGE;
 }
 
-static void lsp_cmd_resize()
+/*
+ * Resize command.
+ *
+ * force == 0: a reload is only needed if the width of the screen changed.
+ * force == 1: don't care if width changed -- just perform the wanted action.
+ */
+static void lsp_cmd_resize(int force)
 {
 	int old_maxx = lsp_maxx;
 
@@ -5063,7 +5072,7 @@ static void lsp_cmd_resize()
 	 * There is no need to reload manual pages if the width of the window
 	 * didn't change.
 	 */
-	if (old_maxx == lsp_maxx) {
+	if (!force && old_maxx == lsp_maxx) {
 		lsp_debug("%s: no change in width.", __func__);
 		return;
 	}
@@ -5516,7 +5525,7 @@ static char *lsp_cmd_select_file()
 			break;
 
 		case KEY_RESIZE:
-			lsp_cmd_resize();
+			lsp_cmd_resize(0);
 			lsp_display_page();
 			lsp_prompt = "Select file and press ENTER.";
 			lsp_create_status_line();
@@ -5874,6 +5883,12 @@ static void lsp_cmd_toggle_options()
 			lsp_maxx -= 8;
 		else
 			lsp_maxx += 8;
+
+		/* For manual pages, we need to narrow the content of the manual
+		   page to provide space for the line numbers.
+		   If line numbers are toggled, that space needs to be
+		   added/removed. */
+		lsp_cmd_resize(1);
 		break;
 	case 'V':
 		lsp_verify = !lsp_verify;
@@ -6265,7 +6280,7 @@ static void lsp_workhorse()
 				lsp_debug("Got another KEY_RESIZE");
 			}
 
-			lsp_cmd_resize();
+			lsp_cmd_resize(0);
 			lsp_display_page();
 			nodelay(lsp_win, false);
 			break;
