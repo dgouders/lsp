@@ -6222,6 +6222,14 @@ static void lsp_workhorse()
 			break;
 		case 'T':
 			if (lsp_mode_is_toc()) {
+				/* Toggle through toc levels. */
+				if (cf->toc_cursor) {
+					/* Bring cursor line to top of page. */
+					lsp_toc_rewind(lsp_toc_get_offset_at_cursor());
+					cf->toc_first = cf->toc;
+					cf->toc_cursor = 0;
+				}
+
 				cf->current_toc_level = (cf->current_toc_level + 1) % 3;
 				/* If we are switching from
 				   level 2 to 0 the current toc_first could
