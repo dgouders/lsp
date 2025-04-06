@@ -183,6 +183,12 @@ static char**			lsp_create_man_argv(char *, char *);
 static void			lsp_create_status_line(void);
 static void			lsp_cursor_care(void);
 static int			lsp_debug(const char *, ...);
+#if DEBUG
+static void			lsp_debug_buffer_append(const char *, size_t);
+static void			lsp_debug_buffer_ctor(void);
+static void			lsp_debug_buffer_dtor(void);
+static void			lsp_debug_buffer_print(void);
+#endif
 static size_t			lsp_decode_sgr(const char *, attr_t *, short *);
 static char *			lsp_detect_manpage(bool);
 static void			lsp_display_page(void);
@@ -598,5 +604,15 @@ struct {
 /* Hidden window and its width for dividing physical lines into window lines. */
 WINDOW *lsp_hwin;
 int lsp_hwin_cols;
+
+#if DEBUG
+/*
+ * Buffer for debugging messages that appear before lsp_logfd is initialized.
+ */
+struct {
+	size_t size;
+	char *buf;
+ } *lsp_debug_buffer;
+#endif
 
 #endif // _LSP_H_GUARD_

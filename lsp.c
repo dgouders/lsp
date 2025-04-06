@@ -1948,6 +1948,55 @@ static int lsp_error(const char *format, ...)
 	exit(EXIT_FAILURE);
 }
 
+#if DEBUG
+/*
+ * Create lsp_debug_buffer with an empty string in it.
+ */
+static void lsp_debug_buffer_ctor()
+{
+	assert(!lsp_debug_buffer);
+
+	lsp_debug_buffer = lsp_malloc(sizeof(*lsp_debug_buffer));
+	lsp_debug_buffer->buf = lsp_malloc(1);
+
+	lsp_debug_buffer->size = 1;
+	lsp_debug_buffer->buf[0] = '\0';
+}
+
+/*
+ * Append content of given buffer to lsp_debug_buffer,
+ * create the latter if necessary.
+ */
+static void lsp_debug_buffer_append(const char *buffer, size_t size)
+{
+	if (!lsp_debug_buffer)
+		lsp_debug_buffer_ctor();
+
+	lsp_debug_buffer->size += size;
+	lsp_debug_buffer->buf = lsp_realloc(lsp_debug_buffer->buf,
+					    lsp_debug_buffer->size);
+	strcat(lsp_debug_buffer->buf, buffer);
+}
+
+static void lsp_debug_buffer_dtor()
+{
+	if (lsp_debug_buffer) {
+		free(lsp_debug_buffer->buf);
+		free(lsp_debug_buffer);
+		lsp_debug_buffer = NULL;
+	}
+}
+
+static void lsp_debug_buffer_print()
+{
+	if (lsp_debug_buffer) {
+		fprintf(lsp_logfp, "%s", lsp_debug_buffer->buf);
+
+		lsp_debug_buffer_dtor();
+	}
+}
+#endif
+
 /*
  * Output a debug message.
  */
@@ -1955,18 +2004,42 @@ static int lsp_debug(const char *format, ...)
 {
 	int result = 0;
 #if DEBUG
+	int length = 0;
+	char *buffer = NULL;
 	FILE *fp = lsp_logfp;
-
-	/* Enable early logging before lsp_logfp is setup according to
-	   a -l option: as long as lsp_logfp is unset we write to stderr. */
-	if (!fp)
-		fp = stderr;
-
 	va_list ap;
-	va_start(ap, format);
-	result = vfprintf(fp, format, ap);
-	fprintf(fp, "\n");
-	result += 1;
+
+	/*
+	 * Enable early logging before lsp_logfp is setup according to a -l
+	 * option: as long as lsp_logfp is unset we write to lsp_debug_buffer.
+	 * When lsp_logfp becomes valid, the content of lsp_debug_buffer is
+	 * initially flushed there.
+	 */
+	if (!fp) {
+		va_start(ap, format);
+		length = vsnprintf(buffer, length, format, ap);
+		va_end(ap);
+
+		buffer = lsp_malloc(length + 2); /* plus \n and \0 */
+
+		va_start(ap, format);
+		result = vsnprintf(buffer, length + 1, format, ap);
+		va_end(ap);
+
+		sprintf(buffer + length, "\n");
+
+		lsp_debug_buffer_append(buffer, length + 1);
+		free(buffer);
+	} else {
+		va_start(ap, format);
+		result = vfprintf(fp, format, ap);
+		va_end(ap);
+
+		fprintf(fp, "\n");
+	}
+
+	result += 1;		/* the final \n */
+
 	va_end(ap);
 #endif
 	return result;
@@ -6773,6 +6846,7 @@ static void lsp_process_options(int argc, char *argv[])
 	}
 #if DEBUG
 	lsp_init_logfile();
+	lsp_debug_buffer_print();
 #endif
 	/* Now, process file names in argv */
 	while (optind < argc) {
