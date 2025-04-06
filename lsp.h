@@ -151,6 +151,12 @@ struct lsp_parent_info {
 };
 
 struct lsp_parent_info *lsp_pinfo;
+
+typedef enum lsp_feeder {
+	LSP_MAN_COMMAND = 1,	/* use man(1) to start a feeder */
+	LSP_PARENT_COMMAND 	/* use parent cmdline to start a feeder */
+} lsp_feeder_t;
+
 
 static void			lsp_apropos_create_grefs(void);
 static void			lsp_argv_dtor(char **);
@@ -194,7 +200,6 @@ static char *			lsp_detect_manpage(bool);
 static void			lsp_display_page(void);
 static char **			lsp_env2argv(char *);
 static int			lsp_error(const char *, ...) __attribute__ ((noreturn));
-static void			lsp_exec_man(void);
 static int			lsp_expand_tab(size_t);
 static void			lsp_file_add(char *, bool);
 static void			lsp_file_add_block(void);
@@ -342,6 +347,7 @@ static int			lsp_sgr_extract_enns(const char *, long *, size_t);
 static size_t			lsp_skip_bsp(const char *, size_t);
 static size_t			lsp_skip_sgr(const char *, size_t);
 static size_t			lsp_skip_to_payload(const char *, size_t);
+static void			lsp_start_feeder(lsp_feeder_t);
 static char **			lsp_str2argv(const char *);
 static void			lsp_to_lower(char *);
 static struct toc_node_t *	lsp_pos_to_toc(off_t);
@@ -544,8 +550,8 @@ bool	lsp_do_line_numbers = false;
    Depends on terminal capabilities; --no-color also turns this off */
 bool	lsp_color;
 
-/* Command to execute to reload a manual page on resize. */
-char	*lsp_reload_command;
+/* Command to execute to load a manual page. */
+char	*lsp_load_man_command;
 /* Command used to verify references. */
 char	*lsp_verify_command;
 bool	lsp_verify_with_apropos;

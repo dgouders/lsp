@@ -4823,7 +4823,7 @@ static void lsp_open_manpage(char *name)
 	cf->ftype |= LSP_FTYPE_MANPAGE;
 	cf->ftype |= LSP_FTYPE_LSPMAN;
 
-	lsp_exec_man();
+	lsp_start_feeder(LSP_MAN_COMMAND);
 }
 
 /*
@@ -5005,11 +5005,22 @@ static void lsp_set_manpager()
 		putenv("PAGER=lsp_cat");
 }
 
-static void lsp_exec_man()
+/*
+ * Start a process that feeds us work.
+ *
+ * @which_one: specify whether we need to start a man(1) process or the original
+ *             feeder (our parent).
+ */
+static void lsp_start_feeder(lsp_feeder_t which_one)
 {
+	char **e_argv;
+
+	if (which_one == LSP_MAN_COMMAND)
+		e_argv = lsp_create_man_argv(lsp_load_man_command, cf->name);
+	else
+		e_argv = lsp_pinfo->argv;
 	/*
-	 * We want man(1) to see a tty so that it sends us a well
-	 * formatted man-page.
+	 * We want our feeder to see a tty so that it wants to use a pager (us).
 	 */
 	struct winsize winsize;
 	struct termios termios;
@@ -5028,8 +5039,6 @@ static void lsp_exec_man()
 
 	if (pid == 0) {		/* child process */
 		lsp_set_manpager();
-
-		char **e_argv = lsp_create_man_argv(lsp_reload_command, cf->name);
 
 		execvp(e_argv[0], e_argv);
 		lsp_error("%s: execvp() failed.", __func__);
@@ -5391,7 +5400,10 @@ static void lsp_file_reload()
 
 	lsp_file_reset();
 
-	lsp_exec_man();
+	if (lsp_file_is_lspman())
+		lsp_start_feeder(LSP_MAN_COMMAND);
+	else
+		lsp_start_feeder(LSP_PARENT_COMMAND);
 
 	/* If there was a TOC all its entries now have invalid
 	   pointers (at a high possibility).  Rebuild it. */
@@ -6763,7 +6775,7 @@ static void lsp_process_options(int argc, char *argv[])
 		{"version",		no_argument,		0, 'v'},
 		{"no-color",		no_argument,		0, '0'},
 		{"no-verify",		no_argument,		0, 'V'},
-		{"reload-command",	required_argument,	0, '1'},
+		{"load-man-command",	required_argument,	0, '1'},
 		{"verify-command",	required_argument,	0, '2'},
 		{"verify-with-apropos", no_argument,		0, '3'},
 		{"keep-cr",		no_argument,		0, '4'},
@@ -6783,11 +6795,11 @@ static void lsp_process_options(int argc, char *argv[])
 			lsp_color = false;
 			break;
 		case '1':
-			/* --reload-command */
-			lsp_reload_command = strdup(optarg);
-			if (lsp_has_man_placeholders(lsp_reload_command))
+			/* --load-man-command */
+			lsp_load_man_command = strdup(optarg);
+			if (lsp_has_man_placeholders(lsp_load_man_command))
 				break;
-			lsp_error("--reload-command requires exactly one %%n and one %%s!");
+			lsp_error("--load-man-command requires exactly one %%n and one %%s!");
 		case '2':
 			/* --verify-command */
 			lsp_verify_command = strdup(optarg);
@@ -6906,7 +6918,7 @@ static void lsp_finish()
 	if (lsp_logfp && lsp_logfp != stderr)
 		fclose(lsp_logfp);
 
-	free(lsp_reload_command);
+	free(lsp_load_man_command);
 	free(lsp_verify_command);
 	free(lsp_apropos_command);
 
@@ -6978,7 +6990,7 @@ static void lsp_init()
 	lsp_load_apropos = false;
 	lsp_apropos_command = strdup("apropos . | sort | sed 's/ (/(/'");
 
-	lsp_reload_command = strdup("man %s %n");
+	lsp_load_man_command = strdup("man %s %n");
 
 	lsp_verify_command = strdup("man -w %s %n > /dev/null 2>&1");
 
