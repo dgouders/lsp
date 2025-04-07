@@ -5112,6 +5112,21 @@ static void lsp_cmd_kill_file()
 }
 
 /*
+ * Check whether basename of path equals q.
+ */
+static bool lsp_basename_is_equal(const char *path, const char *q)
+{
+	bool ret = false;
+	char *s = strdup(path);
+
+	if (LSP_STR_EQ(basename(s), q))
+		ret = true;
+
+	free(s);
+	return ret;
+}
+
+/*
  * For now, an automatically reloadable file needs to meet the following
  * conditions:
  *
@@ -5122,7 +5137,7 @@ static void lsp_cmd_kill_file()
 static bool lsp_file_is_auto_reloadable()
 {
 	return (lsp_is_manpage() &&
-		((lsp_file_is_stdin() && LSP_STR_EQ(lsp_pinfo->argv[0], "man")) ||
+		((lsp_file_is_stdin() && lsp_basename_is_equal(lsp_pinfo->argv[0], "man")) ||
 		 lsp_file_is_lspman()));
 }
 
