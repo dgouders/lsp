@@ -734,7 +734,7 @@ static bool lsp_is_sgr_sequence(const char *c)
 /*
  * Tell if current position is at the beginning of a line.
  */
-static bool lsp_is_at_bol()
+static bool lsp_file_is_at_bol()
 {
 	/* We define the beginning of a file to be the beginning of
 	   a (the first) line, as well. */
@@ -3497,7 +3497,7 @@ static void lsp_cmd_search_bw(lsp_mode_t search_mode)
 	   starting from the previous match and start with inspecting the
 	   remaining part of the line.
 	   Otherwise we inspect the previous line. */
-	if (lsp_is_at_bol())
+	if (lsp_file_is_at_bol())
 		line = lsp_file_get_prev_line();
 	else {
 		line = lsp_get_this_line();
@@ -3784,7 +3784,7 @@ static bool lsp_pos_is_at_bol(off_t pos)
 
 	lsp_file_set_pos(pos);
 
-	ret = lsp_is_at_bol();
+	ret = lsp_file_is_at_bol();
 
 	lsp_file_set_pos(save_pos);
 	return ret;
@@ -4152,7 +4152,7 @@ static void lsp_display_page()
 		/* If we have long lines that consume multiple lines on the page
 		   we need to process SGR sequences that might be in the
 		   previous part of the line. */
-		if (!lsp_is_at_bol())
+		if (!lsp_file_is_at_bol())
 			if (lsp_line_handle_leading_sgr(&attr, &pair))
 				sgr_active = 1;
 
@@ -5139,7 +5139,7 @@ static bool lsp_basename_is_equal(const char *path, const char *q)
  */
 static bool lsp_file_is_auto_reloadable()
 {
-	return (lsp_is_manpage() &&
+	return (lsp_file_is_manpage() &&
 		((lsp_file_is_stdin() && lsp_basename_is_equal(lsp_pinfo->argv[0], "man")) ||
 		 lsp_file_is_lspman()));
 }
@@ -5149,7 +5149,7 @@ static bool lsp_file_is_lspman()
 	return cf->ftype & LSP_FTYPE_LSPMAN;
 }
 
-static bool lsp_is_manpage()
+static bool lsp_file_is_manpage()
 {
 	return cf->ftype & LSP_FTYPE_MANPAGE;
 }
@@ -5242,7 +5242,7 @@ static char *lsp_man_get_section(off_t pos)
 	lsp_reposition.words = 0;
 	lsp_reposition.elines = 0;
 
-	if (!lsp_is_manpage())
+	if (!lsp_file_is_manpage())
 		lsp_error("%s: file \"%s\" is not a manual page.", __func__, cf->name);
 
 	lsp_file_set_pos(pos);
@@ -5870,7 +5870,7 @@ static void lsp_create_status_line()
 
 	wattr_set(lsp_win, A_STANDOUT, LSP_REVERSE_PAIR, NULL);
 
-	if (lsp_is_manpage())
+	if (lsp_file_is_manpage())
 		mvwaddstr(lsp_win, lsp_maxy - 1, 0, "Manual page ");
 
 	x = getcurx(lsp_win);
