@@ -2085,6 +2085,7 @@ static void lsp_file_dtor(struct file_t *file)
 {
 	free(file->name);
 	free(file->rep_name);
+	free(file->neat_name);
 	free(file->lines);
 	lsp_file_data_dtor(file->data);
 
@@ -2157,6 +2158,7 @@ static void lsp_file_init_stdin()
 	/* This should be a name an ordinary file couldn't conflict with.
 	   Let's use the the empty string. */
 	lsp_file_add("", 0);
+	cf->neat_name = lsp_get_neat_cmd_name(lsp_pinfo->argv);
 
 	cf->size = LSP_FSIZE_UNKNOWN;
 	cf->ftype |= LSP_FTYPE_STDIN;
@@ -2568,7 +2570,8 @@ static void lsp_print_file_ring()
 		return;
 
 	do {
-		lsp_debug("%ld: name=\"%s\", size=%ld", i++, ptr->name, ptr->size);
+		lsp_debug("%ld: name=\"%s\" (\"%s\"), size=%ld",
+			  i++, ptr->name, ptr->neat_name, ptr->size);
 		ptr = ptr->next;
 	} while (ptr != cf);
 }
@@ -5489,7 +5492,10 @@ static void lsp_files_list()
 
 		/* Create name for unnamed stdin. */
 		if (nlen == 0) {
-			name = "*stdin*";
+			if (file_p->neat_name)
+				name = file_p->neat_name;
+			else
+				name = "*stdin*";
 			nlen = strlen(name);
 		}
 
@@ -5872,7 +5878,10 @@ static void lsp_create_status_line()
 	/* Display filename.
 	   stdin has no name and we want to display something reasonable. */
 	if (cf->name[0] == '\0')
-		mvwaddstr(lsp_win, lsp_maxy - 1, x, "*stdin*");
+		if (cf->neat_name)
+			mvwaddstr(lsp_win, lsp_maxy - 1, x, cf->neat_name);
+		else
+			mvwaddstr(lsp_win, lsp_maxy - 1, x, "*stdin*");
 	else
 		mvwaddstr(lsp_win, lsp_maxy - 1, x, cf->name);
 
@@ -6441,6 +6450,15 @@ static struct file_t *lsp_file_find(char *name)
 		file_p = file_p->next;
 	} while (file_p != cf);
 
+	/* If no file was found, try one more round to find it by its neat_name. */
+	file_p = cf;
+
+	do {
+		if (file_p->neat_name && LSP_STR_EQ(file_p->neat_name, name))
+			return file_p;
+		file_p = file_p->next;
+	} while (file_p != cf);
+
 	return NULL;
 }
 
@@ -6515,6 +6533,7 @@ static struct file_t *lsp_file_ctor()
 	new_file->mode = LSP_INITIAL_MODE;
 	new_file->name = NULL;
 	new_file->rep_name = NULL;
+	new_file->neat_name = NULL;
 	new_file->fp = NULL;
 	new_file->fd = -1;
 	new_file->page_first = (off_t)-1;
@@ -7135,6 +7154,25 @@ static char *lsp_get_parent_cmd_line(pid_t pid)
 	char *cmd = lsp_malloc(strlen(ps_cmd) - 2 + lsp_ndigits(pid) + 1);
 	sprintf(cmd, ps_cmd, pid);
 	return lsp_run_command2str(cmd);
+}
+
+/*
+ * Build up neat command name that we can present instead of "*stdin*".
+ *
+ * We start with recognizing a git command and use it for display,
+ * e.g."git log".
+ */
+static char *lsp_get_neat_cmd_name(char **argv)
+{
+	char *neat_name = NULL;
+
+	if (argv && lsp_basename_is_equal(argv[0], "git")) {
+		neat_name = strdup("git ");
+		neat_name = lsp_realloc(neat_name, 4 + strlen(argv[1]) + 1);
+		strcat(neat_name, argv[1]);
+	}
+
+	return neat_name;
 }
 
 /*

@@ -252,6 +252,7 @@ static short			lsp_get_color_pair(short, short);
 static struct gref_t *		lsp_get_gref_at_pos(regmatch_t);
 static struct lsp_line_t *	lsp_get_line_at_pos(off_t);
 static struct lsp_line_t *	lsp_get_line_from_here(void);
+static char *			lsp_get_neat_cmd_name(char **);
 static struct lsp_line_t *	lsp_get_next_display_line(void);
 static char *			lsp_get_parent_cmd_line(pid_t);
 static size_t			lsp_get_sgr_len(const char *);
@@ -376,6 +377,7 @@ struct file_t {
 
 	char *name;	      // pathname
 	char *rep_name;	      // replacement name from preprocessor (if any)
+	char *neat_name;      // neat name for status line (only data from stdin)
 	/*
 	 * If we are a pipe to a preprocessor we read one byte to test if we
 	 * get data from it.  This byte gets stored here and we need to consume
