@@ -372,6 +372,9 @@ static void			lsp_workhorse(void);
  * Ring for input file housekeeping
  */
 struct file_t {
+	pid_t child_pid;	/* Pid of child that feeds us data.
+				   0 if there isn't one (to wait() for). */
+
 	lsp_mode_t mode;      // mode of operation: TOC mode, search mode etc.
 	off_t getch_pos;      // next byte for getch() (0-based)
 	int unaligned;	      // chetch_pos not aligned to buffers

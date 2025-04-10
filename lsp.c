@@ -1610,6 +1610,38 @@ static void lsp_file_close()
 		close(cf->fd);
 		cf->fd = -1;
 	}
+
+	if (!cf->child_pid)
+		return;
+
+	/*
+	 * Wait for child to exit().
+	 */
+	while (1) {
+		int wstatus;
+
+		pid_t ret_pid = waitpid(cf->child_pid, &wstatus, 0);
+
+		if (ret_pid == -1)
+			lsp_error("waitpid(%jd): %s",
+				  (intmax_t)cf->child_pid, strerror(errno));
+
+		if (WIFEXITED(wstatus)) {
+			lsp_debug("%s: child %jd exited: %d",
+				  __func__, (intmax_t)cf->child_pid,
+				  WEXITSTATUS(wstatus));
+			break;
+		} else if (WIFSIGNALED(wstatus)) {
+			lsp_debug("%s: child %jd terminated by signal: %d (%s)",
+				  __func__, (intmax_t)cf->child_pid,
+				  WTERMSIG(wstatus), strsignal(WTERMSIG(wstatus)));
+			break;
+		}
+		lsp_debug("%s: %jd: still waiting for child %jd to exit...",
+			  __func__, (intmax_t)ret_pid, (intmax_t)cf->child_pid);
+	}
+
+	cf->child_pid = 0;
 }
 
 /*
@@ -5047,12 +5079,19 @@ static void lsp_start_feeder(lsp_feeder_t which_one)
 		winsize.ws_col -= 8;
 
 	int ptmxfd;
-	pid_t pid = forkpty(&ptmxfd, NULL, &termios, &winsize);
 
-	if (pid == -1)
+	/* Look out for situations when there is an uncatched child. */
+	assert(cf->child_pid == 0);
+
+	/*
+	 * We want our feeder to see a tty so that it wants to use a pager (us).
+	 */
+	cf->child_pid = forkpty(&ptmxfd, NULL, &termios, &winsize);
+
+	if (cf->child_pid == -1)
 		lsp_error("forkpty(): %s", strerror(errno));
 
-	if (pid == 0) {		/* child process */
+	if (cf->child_pid == 0) {		/* child process */
 		lsp_set_pager("lsp_cat");
 
 		execvp(e_argv[0], e_argv);
@@ -5069,28 +5108,7 @@ static void lsp_start_feeder(lsp_feeder_t which_one)
 	/* Try to find a manpage name heading its content. */
 	char *name = lsp_read_manpage_name();
 
-	lsp_file_read_all();
-
-	while (1) {
-		int wstatus;
-
-		pid_t ret_pid = waitpid(pid, &wstatus, 0);
-
-		if (ret_pid == -1)
-			lsp_error("waitpid(%jd): %s", (intmax_t)pid, strerror(errno));
-
-		if (WIFEXITED(wstatus)) {
-			lsp_debug("%s: child %jd exited: %d",
-				  __func__, (intmax_t)pid, WEXITSTATUS(wstatus));
-			break;
-		} else if (WIFSIGNALED(wstatus)) {
-			lsp_debug("%s: child %jd terminated by signal: %d (%s)",
-				  __func__, (intmax_t)pid, WTERMSIG(wstatus), strsignal(WTERMSIG(wstatus)));
-			break;
-		}
-		lsp_debug("%s: %jd: still waiting for child %jd to exit...",
-			  __func__, (intmax_t)ret_pid, (intmax_t)pid);
-	}
+	lsp_file_add_block();
 
 	if (name == NULL)
 		name = lsp_detect_manpage(false);
@@ -6542,6 +6560,7 @@ static struct file_t *lsp_file_ctor()
 {
 	struct file_t *new_file = lsp_malloc(sizeof(struct file_t));
 
+	new_file->child_pid = 0;
 	new_file->mode = LSP_INITIAL_MODE;
 	new_file->name = NULL;
 	new_file->rep_name = NULL;
