@@ -17,7 +17,7 @@
 .\" You should have received a copy of the GNU General Public License along with
 .\" lsp. If not, see <https://www.gnu.org/licenses/>.
 .\"
-.TH lsp 1 04/06/2025 0.5.0-rc4 "User commands"
+.TH lsp 1 04/12/2025 0.5.0-rc4 "User commands"
 .\"--------------------------------------------------------------------
 .SH Name
 .\"--------------------------------------------------------------------
@@ -100,6 +100,17 @@ extend, but
 .B it might be
 .BR incomplete .
 Users should keep that in mind.
+.P
+.I lsp
+also supports reloading the content of files, but currently only for:
+.IP
+\[bu] manual pages
+.IP
+\[bu] regular files
+.IP
+\[bu]
+.MR git 1
+commands
 .\"--------------------------------------------------------------------
 .SH Searching
 .\"--------------------------------------------------------------------
@@ -601,7 +612,9 @@ exit selection without selecting a file; stay at the former one.
 .br
 Reload current file.
 .IP
-(Currently only for regular files.)
+Currently only manual pages, regular files and the output of
+.MR git 1
+commands can be reloaded.
 .\"--------------------------------------------------------------------
 .SH Environment
 .\"--------------------------------------------------------------------

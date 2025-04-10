@@ -731,6 +731,16 @@ static bool lsp_is_sgr_sequence(const char *c)
 
 }
 
+static bool lsp_parent_is_restartable(const char *name)
+{
+	int i;
+
+	for (i = 0; lsp_restartable[i]; i++)
+		if (LSP_STR_EQ(name, lsp_restartable[i]))
+			return true;
+	return false;
+}
+
 /*
  * Tell if current position is at the beginning of a line.
  */
@@ -3351,13 +3361,21 @@ static void lsp_file_reread()
 /*
  * Reload content of current file.
  *
- * Currently, explicit reloading is supported only for regular files.
+ * Currently, explicit reloading is supported only for regular files
+ * and for known parents that feed us via stdin.
  *
  */
 static void lsp_cmd_reload()
 {
+	lsp_prompt = lsp_content_reloaded;
+
 	if (lsp_file_is_regular()) {
 		lsp_file_reread();
+		return;
+	}
+
+	if (lsp_parent_is_restartable(lsp_pinfo->argv[0])) {
+		lsp_file_reload();
 		return;
 	}
 
@@ -5055,25 +5073,22 @@ static void lsp_set_pager(const char *pager)
  */
 static void lsp_start_feeder(lsp_feeder_t which_one)
 {
+	int ptmxfd;
 	char **e_argv;
+	char *name;
+	struct winsize winsize;
+	struct termios termios;
 
 	if (which_one == LSP_MAN_COMMAND)
 		e_argv = lsp_create_man_argv(lsp_load_man_command, cf->name);
 	else
 		e_argv = lsp_pinfo->argv;
-	/*
-	 * We want our feeder to see a tty so that it wants to use a pager (us).
-	 */
-	struct winsize winsize;
-	struct termios termios;
 
 	ioctl(STDOUT_FILENO, TIOCGWINSZ, &winsize);
 	ioctl(STDOUT_FILENO, TCGETS, &termios);
 
 	if (lsp_do_line_numbers)
 		winsize.ws_col -= 8;
-
-	int ptmxfd;
 
 	/* Look out for situations when there is an uncatched child. */
 	assert(cf->child_pid == 0);
@@ -5100,10 +5115,14 @@ static void lsp_start_feeder(lsp_feeder_t which_one)
 
 	lsp_file_set_blksize();
 
-	/* Try to find a manpage name heading its content. */
-	char *name = lsp_read_manpage_name();
-
 	lsp_file_add_block();
+
+	/* Try to find a manpage name heading its content. */
+	if (!lsp_file_is_manpage())
+		return;
+
+	/* Take care for filename of manpage. */
+	name = lsp_read_manpage_name();
 
 	if (name == NULL)
 		name = lsp_detect_manpage(false);
@@ -5423,19 +5442,40 @@ static void lsp_man_reposition(char *section)
 		 * Use old behavior: use previous page_first and reposition to
 		 * BOL.
 		 */
-		lsp_file_set_pos(cf->page_first);
-		lsp_goto_bol();
+		lsp_file_set_pos_bol(cf->page_first);
 	} else {
 		lsp_file_forward_empty_lines(lsp_reposition.elines);
 		lsp_file_forward_words(lsp_reposition.words);
 	}
 }
 
-/*
- * Currently, only manual pages get reloaded -- no need to check if the current
- * file (cf) is a manual page.
- */
 static void lsp_file_reload()
+{
+	if (lsp_file_is_manpage()) {
+		lsp_file_reload_manpage();
+		return;
+	}
+
+	lsp_file_reset();
+
+	lsp_start_feeder(LSP_PARENT_COMMAND);
+
+	lsp_file_read_to_pos(cf->page_first);
+
+	/*
+	 * Simply go to the last page, if the content shrank so that our
+	 * previous page position isn't longer part of the file.
+	 */
+	if (cf->seek <= cf->page_first) {
+		lsp_cmd_goto_end();
+		cf->page_first = lsp_pos;
+	}
+
+	lsp_file_set_pos_bol(cf->page_first);
+	return;
+}
+
+static void lsp_file_reload_manpage()
 {
 	char *saved_man_section;
 

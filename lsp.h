@@ -152,6 +152,8 @@ struct lsp_parent_info {
 
 struct lsp_parent_info *lsp_pinfo;
 
+char *lsp_restartable[] = {"git", "man", NULL};
+
 typedef enum lsp_feeder {
 	LSP_MAN_COMMAND = 1,	/* use man(1) to start a feeder */
 	LSP_PARENT_COMMAND 	/* use parent cmdline to start a feeder */
@@ -236,6 +238,7 @@ static void			lsp_file_read_all(void);
 static ssize_t			lsp_file_read_block(size_t);
 static void			lsp_file_read_to_pos(off_t);
 static void			lsp_file_reload(void);
+static void			lsp_file_reload_manpage(void);
 static void			lsp_file_reread(void);
 static void			lsp_file_reset(void);
 static void			lsp_file_ring_dtor(void);
@@ -318,6 +321,7 @@ static size_t			lsp_normalize_count(const char *, size_t, size_t);
 static void			lsp_open_cterm(void);
 static int			lsp_open_file(const char *);
 static void			lsp_open_manpage(char *);
+static bool			lsp_parent_is_restartable(const char *);
 static void			lsp_pinfo_dtor(void);
 static void			lsp_pinfo_ctor(void);
 #if DEBUG
@@ -583,6 +587,7 @@ unsigned char lsp_shift;
 /* xxx put into lsp_init() or so */
 char	*lsp_not_found = "Pattern not found";
 char    *lsp_reload_not_supported = "Reload not supported.";
+char	*lsp_content_reloaded = "File content reloaded.";
 
 /* String from LSP_OPEN or LESSOPEN environment variable. */
 char *lsp_env_open;
