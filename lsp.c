@@ -5000,18 +5000,24 @@ static char *lsp_read_manpage_name()
 }
 
 /*
- * Set appropriate environment variable to tell man(1) about the pager
- * to use.
+ * Set appropriate environment variable to tell processes we start about the
+ * pager to use.
  *
- * This function is usually called by a child before executing man(1) to send
- * the parent process a manual page.
+ * For now, we just set all known environment variables that specify a pager
+ * (lsp_pager_vars), no matter, which program we are going to start.
  */
-static void lsp_set_manpager()
+static void lsp_set_pager(const char *pager)
 {
-	if (getenv("MANPAGER") != NULL)
-		putenv("MANPAGER=lsp_cat");
-	else
-		putenv("PAGER=lsp_cat");
+	int i;
+	char *env;
+
+	for (i = 0; lsp_pager_vars[i]; i++) {
+		env = malloc(strlen(lsp_pager_vars[i]) + strlen(pager) + 1);
+		memcpy(env, lsp_pager_vars[i], strlen(lsp_pager_vars[i]) + 1);
+		strcat(env, pager);
+		lsp_debug("%s: \"%s\"", __func__, env);
+		putenv(env);
+	}
 }
 
 /*
@@ -5047,7 +5053,7 @@ static void lsp_start_feeder(lsp_feeder_t which_one)
 		lsp_error("forkpty(): %s", strerror(errno));
 
 	if (pid == 0) {		/* child process */
-		lsp_set_manpager();
+		lsp_set_pager("lsp_cat");
 
 		execvp(e_argv[0], e_argv);
 		lsp_error("%s: execvp() failed.", __func__);
