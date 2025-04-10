@@ -243,6 +243,7 @@ static regmatch_t		lsp_file_search_next(void);
 static void			lsp_file_set_blksize(void);
 static void			lsp_file_set_current_match(regmatch_t);
 static void			lsp_file_set_pos(off_t);
+static void			lsp_file_set_pos_bol(off_t);
 static void			lsp_file_set_prev_line(void);
 static void			lsp_file_set_size(void);
 static void			lsp_file_toc_add(const struct lsp_line_t *, int);

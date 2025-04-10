@@ -1250,12 +1250,11 @@ static struct toc_node_t *lsp_pos_to_toc(off_t pos)
 	struct toc_node_t *old_toc = cf->toc;
 	off_t old_pos = lsp_pos;
 
-	/* Position file to the given position. */
-	lsp_file_set_pos(pos);
-
-	/* Go to the beginning of the current line and try to find that position
-	   in the TOC entries. */
-	lsp_goto_bol();
+	/*
+	 * Position file to the beginning of the line at the given position
+	 * and try to find that position in the TOC entries.
+	 */
+	lsp_file_set_pos_bol(pos);
 
 	/* Search for TOC entry starting at current position. */
 	if (cf->toc->pos > pos)
@@ -2578,6 +2577,15 @@ static void lsp_print_file_ring()
 #endif
 
 /*
+ * Reset getch_pos and then ensure we are at the beginning of a line.
+ */
+static void lsp_file_set_pos_bol(off_t pos)
+{
+	lsp_file_set_pos(pos);
+	lsp_goto_bol();
+}
+
+/*
  * Reset getch_pos and mark the file's buffers unaligned.
  */
 static void lsp_file_set_pos(off_t pos)
@@ -3692,10 +3700,8 @@ static void lsp_search_align_to_match(int invert)
 		/* Bring current search match to the first line. */
 		if (lsp_mode_is_toc())
 			cf->toc = lsp_pos_to_toc(cf->current_match.rm_so);
-		else {
-			lsp_file_set_pos(cf->current_match.rm_so);
-			lsp_goto_bol();
-		}
+		else
+			lsp_file_set_pos_bol(cf->current_match.rm_so);
 	else
 		/*
 		 * Show search match with context.
