@@ -3349,7 +3349,7 @@ static void lsp_file_reread()
 
 	/* If the file is now smaller, position to its last page. */
 	if (cf->seek <= old_page_first) {
-		lsp_cmd_goto_end();
+		lsp_cmd_goto_last_page();
 		cf->page_first = lsp_pos;
 	} else
 		cf->page_first = old_page_first;
@@ -3887,7 +3887,7 @@ static void lsp_cmd_goto_start()
 /*
  * Go to end of file and then back one page.
  */
-static void lsp_cmd_goto_end()
+static void lsp_cmd_goto_last_page()
 {
 	lsp_file_read_all();
 
@@ -5467,7 +5467,7 @@ static void lsp_file_reload()
 	 * previous page position isn't longer part of the file.
 	 */
 	if (cf->seek <= cf->page_first) {
-		lsp_cmd_goto_end();
+		lsp_cmd_goto_last_page();
 		cf->page_first = lsp_pos;
 	}
 
@@ -6275,7 +6275,7 @@ static void lsp_workhorse()
 				lsp_toc_rewind((off_t)-1);
 				cf->toc_cursor = 0;
 			} else
-				lsp_cmd_goto_end();
+				lsp_cmd_goto_last_page();
 			lsp_display_page();
 			break;
 		case KEY_BTAB:	/* Shift-TAB */

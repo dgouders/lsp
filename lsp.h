@@ -170,7 +170,7 @@ static bool			lsp_cm_cursor_is_valid(void);
 static void			lsp_cmd_apropos(void);
 static void			lsp_cmd_backward(int);
 static void			lsp_cmd_forward(int);
-static void			lsp_cmd_goto_end(void);
+static void			lsp_cmd_goto_last_page(void);
 static void			lsp_cmd_goto_start(void);
 static void			lsp_cmd_kill_file(void);
 static void			lsp_cmd_mouse(void);
