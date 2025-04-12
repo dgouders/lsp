@@ -5535,7 +5535,7 @@ static void lsp_file_reset()
 /*
  * Create a file_t structure that lists all open files.
  */
-static void lsp_files_list()
+static void lsp_cmd_show_files()
 {
 	size_t line_size = 1024;
 	char *line = lsp_malloc(line_size);
@@ -6193,7 +6193,7 @@ static void lsp_workhorse()
 		case 'B':
 			lsp_mode_set_initial();
 			lsp_file_set_pos(cf->page_first);
-			lsp_files_list();
+			lsp_cmd_show_files();
 			lsp_display_page();
 			break;
 		case 'a':
