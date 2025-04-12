@@ -3330,9 +3330,6 @@ static bool lsp_is_readable(char *path)
  */
 static void lsp_file_reread()
 {
-	/* Save position of last page shown. */
-	off_t old_page_first = cf->page_first;
-
 	if (!lsp_is_readable(cf->name)) {
 		lsp_prompt = "File is no longer readable.";
 		lsp_file_set_pos(cf->page_first);
@@ -3343,18 +3340,17 @@ static void lsp_file_reread()
 	lsp_file_init();
 
 	/* Try to reread to the position we displayed last. */
-	lsp_file_read_to_pos(old_page_first);
+	lsp_file_read_to_pos(cf->page_first);
 
 	lsp_debug("%s: reread file %s to pos %ld", __func__, cf->name, cf->size);
 
 	/* If the file is now smaller, position to its last page. */
-	if (cf->seek <= old_page_first) {
+	if (cf->seek <= cf->page_first) {
 		lsp_cmd_goto_last_page();
 		cf->page_first = lsp_pos;
-	} else
-		cf->page_first = old_page_first;
+	}
 
-	lsp_file_set_pos(cf->page_first);
+	lsp_file_set_pos_bol(cf->page_first);
 	return;
 }
 
