@@ -4164,14 +4164,9 @@ static void lsp_display_page()
 	if (cf->do_reload)
 		lsp_file_reload();
 
-	if (!lsp_mode_is_toc()) {
-		/* Nothing to display at EOF. */
-		if (cf->size != LSP_FSIZE_UNKNOWN && (lsp_pos == cf->size))
-			return;
-
+	if (!lsp_mode_is_toc())
 		/* Save offset from where we build this page. */
 		cf->page_first = lsp_pos;
-	}
 
 	lsp_invalidate_cm_cursor();
 
