@@ -13,6 +13,9 @@ Description
        lsp is a terminal pager that assists in paging through data, usually
        text — no more(1), no less(1).
 
+       If lsp is called with standard output not being a terminal device (e.g.
+       in a pipe or with redirected output), lsp replaces itself with cat(1).
+
        The given files are opened if file names are given as options.  Other‐
        wise lsp assumes input from stdin and tries to read from there.
 
@@ -48,32 +51,47 @@ Description
          The TOC is created using naive heuristics which works  well  to  some
          extend, but it might be incomplete.  Users should keep that in mind.
 
+       lsp  also  supports  reloading the content of files, but currently only
+       for:
+
+              • manual pages
+
+              • regular files
+
+              • git(1) commands
+
 Searching
-       lsp   supports   searches   using  extended  regular  expressions  (see
+       lsp  supports  searches  using  extended   regular   expressions   (see
        regex(7)).
 
-       •      Initially, searches in both directions start at the top left  of
+       •      Initially,  searches in both directions start at the top left of
               the current page.
 
-       •      If  the  search  pattern  is changed or a search continued after
-              other movement or a change between searches and navigating  ref‐
-              erences  happens with the last current match on the current page
+       •      If the search pattern is changed or  a  search  continued  after
+              other  movement or a change between searches and navigating ref‐
+              erences happens with the last current match on the current  page
               the new search starts from that position.
 
-       •      Found matches are highlighted and the  first  one  (the  current
-              match)  is  marked by a blinking curser at the end of the match.
-              'n' and 'p' navigate to the individual matches forth  and  back,
+       •      Found  matches  are  highlighted  and the first one (the current
+              match) is marked by a blinking curser at the end of  the  match.
+              'n'  and  'p' navigate to the individual matches forth and back,
               respectively.
 
-       •      If  a  search  is  started lsp tries to place the first matching
-              line on the middle of the screen so that context in both  direc‐
+       •      If a search is started lsp tries to  place  the  first  matching
+              line  on the middle of the screen so that context in both direc‐
               tions is visible.
 
-              Further  matches  on  the same page don’t cause further movement
+              Further matches on the same page don’t  cause  further  movement
               until the first/last line is reached.
 
-       •      CTRL-l can be used to bring the line with the current  match  to
+       •      CTRL-l  can  be used to bring the line with the current match to
               the top of the screen.
+
+       •      The positioning of search matches can  be  toggled  by  pressing
+              CTRL-l twice.
+
+              This toggles whether search matches are placed on the first line
+              or as described above.
 
        •      Highlighting  of  matches  remains  active when changing back to
               normal file movement.  Press ESC to  turn  off  highlighting  of
@@ -193,15 +211,15 @@ Options
        -o, --output-file
               Specify output file to duplicate all read input.
 
-       --reload-command
-              Specify command to (re)load manual pages.
+       --load-man-command
+              Specify command to load manual pages.
 
               The given string must contain exactly one %n and one %s.
 
               %n  is  a  placeholder for the name of the manual page and %s is
               one for the section.
 
-              Default is "man %n.%s".
+              Default is "man %s %n".
 
        -s, --search-string
               Specify an initial search string.
@@ -230,7 +248,7 @@ Options
               %n is a placeholder for the name of the manual page  and  %s  is
               one for the section.
 
-              Default is "man -w %n.%s > /dev/null 2>&1"
+              Default is "man -w %s %n > /dev/null 2>&1"
 
        --verify-with-apropos
               Use  the  entries  of  the pseudo-file Apropos for validation of
@@ -334,27 +352,33 @@ Commands
                   exit selection without selecting a file; stay at the  former
                   one.
 
+       r
+              Reload current file.
+
+              Currently  only  manual  pages,  regular files and the output of
+              git(1) commands can be reloaded.
+
 Environment
        LSP_OPTIONS
-              All  command line options can also be specified using this vari‐
+              All command line options can also be specified using this  vari‐
               able.
 
        LSP_OPEN / LESSOPEN
-              Analogical to less(1), lsp supports an  input  preprocessor  but
+              Analogical  to  less(1),  lsp supports an input preprocessor but
               currently just the two basic forms:
 
               1)     A string with the command to invoke the preprocessor con‐
                      taining exactly one occurence of "%s" to be replaced with
                      the file name.
 
-                     This  command  must  write  a filename to standard output
-                     that lsp can use to read the data  it  should  offer  for
+                     This command must write a  filename  to  standard  output
+                     that  lsp  can  use  to read the data it should offer for
                      paging.
 
               2)     Same as 1) but starting with a pipe symbol "|" to form an
                      input pipe.
 
-                     The  specified  command  must write to standard output to
+                     The specified command must write to  standard  output  to
                      hand over the data for paging to lsp.
 
        MAN_PN
@@ -367,5 +391,5 @@ See Also
 Bugs
        Report bugs at https://github.com/dgouders/lsp
 
-0.5.0-rc4                         02/12/2024                            lsp(1)
+0.5.0-rc5                         04/13/2025                            lsp(1)
 ```
