@@ -105,6 +105,17 @@ struct lsp_line_t {
 };
 
 /*
+ * Page context used while composing a page to display.
+ */
+struct lsp_pg_ctx {
+	int y;			/* current line */
+	int x;			/* current column */
+	attr_t attr;		/* attribute for character output */
+	short pair;		/* color pair */
+	off_t top_line;		/* TOP line of TOC (if TOC mode) */
+};
+
+/*
  * Globally keep track of what references we validated.
  * No matter what file we are paging it came from.
  */
@@ -321,6 +332,7 @@ static size_t			lsp_normalize_count(const char *, size_t, size_t);
 static void			lsp_open_cterm(void);
 static int			lsp_open_file(const char *);
 static void			lsp_open_manpage(char *);
+static void			lsp_page_process_lines(struct lsp_pg_ctx *);
 static bool			lsp_parent_is_restartable(const char *);
 static void			lsp_pinfo_dtor(void);
 static void			lsp_pinfo_ctor(void);

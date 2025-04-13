@@ -4142,68 +4142,62 @@ static int lsp_line_handle_leading_sgr(attr_t *attr, short *pair)
 }
 
 /*
- * Display page of data at current file position.
+ * Process the next lines from the current position of the current file to
+ * display them as a page.
  */
-static void lsp_display_page()
+static void lsp_page_process_lines(struct lsp_pg_ctx *pctx)
 {
-	off_t top_line = (off_t)-1;
+	/* Remember if the text has SGR sequences in it. */
+	char sgr_active = 0;
+
+	/* A line we are currently processing. */
+	struct lsp_line_t *line = NULL;
+
+	/* Index of pmatch array that is the current match */
+	ssize_t lsp_cm_index;
+
+	/* Count of search matches */
+	size_t match_count = 0;
+
+	/* Array with all the matches. */
+	regmatch_t *pmatch = NULL;
+
+	/* TOC top line; currently unset. */
+	pctx->top_line = (off_t)-1;
+
+	/* Width of a wide character we currently process. */
+	size_t ch_len;
+
 	/* For conversion to cchar_t we need strings of wchar_t
 	   terminatet by L'\0'. */
 	wchar_t ch[2] = { L'\0', L'\0' };
-	size_t ch_len;
 	wchar_t next_ch = L'\0';
 	/* Needed to distinguish a bold '_' and italics. */
 	wchar_t next_ch2;
 	/* Complex char for cursesw routines. */
 	cchar_t cchar_ch[2];
 
-	int y, x;
-
-	/* Remember if the text has SGR sequences in it. */
-	char sgr_active = 0;
-
-	regmatch_t *pmatch = NULL;
-	struct lsp_line_t *line = NULL;
-	size_t match_count = 0;
-
-	/* Index of pmatch array that is the current match */
-	ssize_t lsp_cm_index;
-
-	attr_t attr;
-	short pair;
 	/* attr and pair saved when highlighting matches. */
 	attr_t attr_old;
 	short pair_old;
 
-	y = x = 0;		/* Start in upper left corner */
-
-	/* Reload file if necessary, e.g. after a resize. */
-	if (cf->do_reload)
-		lsp_file_reload();
-
-	if (!lsp_mode_is_toc())
-		/* Save offset from where we build this page. */
-		cf->page_first = lsp_pos;
-
-	lsp_invalidate_cm_cursor();
-
 	/*
 	 * Process lines until EOF or the window is filled.
 	 */
-	while (y < (lsp_maxy - 1)) {
+	while (pctx->y < (lsp_maxy - 1)) {
 		/* Remember ongoing translation '\r' => "^M"
 		 * When a new line starts there is none.
 		 */
 		bool cr_active = false;
 
-		attr = A_NORMAL;
-		pair = LSP_DEFAULT_PAIR;
+		pctx->attr = A_NORMAL;
+		pctx->pair = LSP_DEFAULT_PAIR;
 
 		/* If we have long lines that consume multiple lines on the page
 		   we need to process SGR sequences that might be in the
 		   previous part of the line. */
 		if (!lsp_file_is_at_bol())
-			if (lsp_line_handle_leading_sgr(&attr, &pair))
+			if (lsp_line_handle_leading_sgr(&pctx->attr, &pctx->pair))
 				sgr_active = 1;
 
 		lsp_line_dtor(line);
@@ -4218,9 +4212,9 @@ static void lsp_display_page()
 
 		/* Display line numbers. */
 		if (lsp_do_line_numbers) {
-			mvwprintw(lsp_win, y, x, "%7ld|",
+			mvwprintw(lsp_win, pctx->y, pctx->x, "%7ld|",
 				  lsp_file_pos2line(line->pos));
-			getyx(lsp_win, y, x);
+			getyx(lsp_win, pctx->y, pctx->x);
 		}
 
 		/* Find search matches in current line */
@@ -4244,9 +4238,9 @@ static void lsp_display_page()
 		 * Caution: a line could be much longer than the width of the
 		 *          window and thus fill the remainder of the window.
 		 */
-		while ((lindex < line->len) && (y < (lsp_maxy - 1))) {
-			if (lsp_mode_is_toc() && top_line == (off_t)-1)
-				top_line = line->pos;
+		while ((lindex < line->len) && (pctx->y < (lsp_maxy - 1))) {
+			if (lsp_mode_is_toc() && pctx->top_line == (off_t)-1)
+				pctx->top_line = line->pos;
 
 			/* Convert tabs to spaces. */
 			if (line->current[0] == '\t')
@@ -4276,17 +4270,17 @@ static void lsp_display_page()
 						pmatch[i].rm_eo >= lindex) {
 
 						if (pmatch[i].rm_so == lindex) {
-							attr_old = attr;
-							pair_old = pair;
+							attr_old = pctx->attr;
+							pair_old = pctx->pair;
 							match_active = 1;
 						}
 
 						if (lsp_mode_is_refs()) {
-							attr = A_UNDERLINE;
-							pair = LSP_UL_PAIR;
+							pctx->attr = A_UNDERLINE;
+							pctx->pair = LSP_UL_PAIR;
 						} else {
-							attr = A_STANDOUT;
-							pair = LSP_REVERSE_PAIR;
+							pctx->attr = A_STANDOUT;
+							pctx->pair = LSP_REVERSE_PAIR;
 						}
 
 						/* Notice if we are working on
@@ -4297,8 +4291,8 @@ static void lsp_display_page()
 
 					/* Notice the end of the match */
 					if (pmatch[i].rm_eo == lindex) {
-						attr = attr_old;
-						pair = pair_old;
+						pctx->attr = attr_old;
+						pctx->pair = pair_old;
 						match_active = 0;
 
 					}
@@ -4306,8 +4300,8 @@ static void lsp_display_page()
 					/* Notice if it was the current match, remember its
 					   coords for positioning the cursor, later. */
 					if (lsp_cm_index == i && pmatch[i].rm_eo <= lindex) {
-						cf->cmatch_y = y;
-						cf->cmatch_x = x;
+						cf->cmatch_y = pctx->y;
+						cf->cmatch_x = pctx->x;
 
 						lsp_debug("Current match position = %d,%d",
 							  cf->cmatch_y, cf->cmatch_x);
@@ -4332,7 +4326,7 @@ static void lsp_display_page()
 			 * Binary data could give us TAB being part of a
 			 * backslash sequence -- we don't touch those.
 			 */
-			attr_t attr_orig = attr;
+			attr_t attr_orig = pctx->attr;
 			while (ch[0] != '\t' && (ch[0] != L'\b' && next_ch == L'\b')) {
 				/*
 				 * According to grotty(1) there are three
@@ -4346,11 +4340,11 @@ static void lsp_display_page()
 
 				if (attr_orig == A_NORMAL) {
 					if (ch[0] == L'_' && next_ch2 != L'_') {
-						attr = A_UNDERLINE;
-						pair = LSP_UL_PAIR;
+						pctx->attr = A_UNDERLINE;
+						pctx->pair = LSP_UL_PAIR;
 					} else if (ch[0] == next_ch2) {
-						attr |= A_BOLD;
-						pair = LSP_BOLD_PAIR;
+						pctx->attr |= A_BOLD;
+						pctx->pair = LSP_BOLD_PAIR;
 					}
 				}
 
@@ -4375,7 +4369,7 @@ static void lsp_display_page()
 				if (match_active)
 					l = lsp_decode_sgr(line->current, &attr_old, &pair_old);
 				else
-					l = lsp_decode_sgr(line->current, &attr, &pair);
+					l = lsp_decode_sgr(line->current, &pctx->attr, &pctx->pair);
 
 				/* Only use correct SGR sequences. */
 				if (l == (size_t)-1)
@@ -4418,15 +4412,15 @@ static void lsp_display_page()
 			if (line_x >= lsp_shift || ch[0] == '\n') {
 				/* Chop the line if we reach the width of the
 				   window. */
-				if (lsp_chop_lines && x == lsp_maxx - 1) {
+				if (lsp_chop_lines && pctx->x == lsp_maxx - 1) {
 					if (next_ch != '\n')
 						ch[0] = '>';
 
-					setcchar(cchar_ch, ch, attr, pair, NULL);
+					setcchar(cchar_ch, ch, pctx->attr, pctx->pair, NULL);
 
-					mvwadd_wch(lsp_win, y, x, cchar_ch);
+					mvwadd_wch(lsp_win, pctx->y, pctx->x, cchar_ch);
 
-					getyx(lsp_win, y, x);
+					getyx(lsp_win, pctx->y, pctx->x);
 					break;
 				}
 
@@ -4434,14 +4428,14 @@ static void lsp_display_page()
 					if (lindex == 0) {
 						/* Avoid nirvana cursor on last page. */
 						if (!cf->toc->next)
-							if (cf->toc_cursor > y)
-								cf->toc_cursor = y;
+							if (cf->toc_cursor > pctx->y)
+								cf->toc_cursor = pctx->y;
 					}
 
 					/* Highlight cursor line if we are not searching. */
-					if (!lsp_mode_is_highlight() && y == cf->toc_cursor) {
-						attr = A_REVERSE;
-						pair = LSP_REVERSE_PAIR;
+					if (!lsp_mode_is_highlight() && pctx->y == cf->toc_cursor) {
+						pctx->attr = A_REVERSE;
+						pctx->pair = LSP_REVERSE_PAIR;
 					}
 				}
 
@@ -4465,16 +4459,16 @@ static void lsp_display_page()
 
 				/* All the above happened to finaly output a
 				 * single character */
-				setcchar(cchar_ch, ch, attr, pair, NULL);
+				setcchar(cchar_ch, ch, pctx->attr, pctx->pair, NULL);
 
-				mvwadd_wch(lsp_win, y, x, cchar_ch);
+				mvwadd_wch(lsp_win, pctx->y, pctx->x, cchar_ch);
 
-				getyx(lsp_win, y, x);
+				getyx(lsp_win, pctx->y, pctx->x);
 
 				/* Line is done if ncurses already skipped to the next
 				   line and we only have a linefeed left in this
 				   line. */
-				if (x == 0) {
+				if (pctx->x == 0) {
 					/* The line could end with an SGR
 					   sequence before the linefeed */
 					size_t l_offset = lindex + ch_len;
@@ -4496,10 +4490,10 @@ static void lsp_display_page()
 
 			/* Reset attributes if we are not in a search match or
 			   an SGR sequence. */
-			if (attr != A_NORMAL && lsp_cm_index == -1)
+			if (pctx->attr != A_NORMAL && lsp_cm_index == -1)
 				if (!sgr_active) {
-					attr = A_NORMAL;
-					pair = LSP_DEFAULT_PAIR;
+					pctx->attr = A_NORMAL;
+					pctx->pair = LSP_DEFAULT_PAIR;
 				}
 
 			/* Stay at position in line, if we are currently
@@ -4528,24 +4522,53 @@ line_done:
 		}
 	}
 
+	lsp_line_dtor(line);
+}
+
+/*
+ * Display page of data at current file position.
+ */
+static void lsp_display_page()
+{
+	/* For conversion to cchar_t we need strings of wchar_t
+	   terminatet by L'\0'. */
+	wchar_t ch[2] = { L'\0', L'\0' };
+	/* Complex char for cursesw routines. */
+	cchar_t cchar_ch[2];
+
+	struct lsp_pg_ctx pctx = {
+		.x = 0,
+		.y = 0
+	};
+
+	/* Reload file if necessary, e.g. after a resize. */
+	if (cf->do_reload)
+		lsp_file_reload();
+
+	if (!lsp_mode_is_toc())
+		/* Save offset from where we build this page. */
+		cf->page_first = lsp_pos;
+
+	lsp_invalidate_cm_cursor();
+
+	lsp_page_process_lines(&pctx);
+
 	/* Fill the remainder of the window with empty lines */
 	ch[0] = L'\n';
-	setcchar(cchar_ch, ch, attr, pair, NULL);
+	setcchar(cchar_ch, ch, pctx.attr, pctx.pair, NULL);
 
-	while ((y < (lsp_maxy - 1))) {
-		mvwadd_wch(lsp_win, y, x, cchar_ch);
-		getyx(lsp_win, y, x);
+	while ((pctx.y < (lsp_maxy - 1))) {
+		mvwadd_wch(lsp_win, pctx.y, pctx.x, cchar_ch);
+		getyx(lsp_win, pctx.y, pctx.x);
 	}
 
 	if (!lsp_mode_is_toc())
 		lsp_file_set_pos(cf->page_last);
 
-	if (lsp_mode_is_toc() && top_line != (off_t)-1)
-		cf->toc_first = lsp_pos_to_toc(top_line);
+	if (lsp_mode_is_toc() && pctx.top_line != (off_t)-1)
+		cf->toc_first = lsp_pos_to_toc(pctx.top_line);
 
 	wrefresh(lsp_win);
-
-	lsp_line_dtor(line);
 }
 
 /*
