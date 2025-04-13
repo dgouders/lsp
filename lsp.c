@@ -1681,6 +1681,9 @@ static void lsp_file_set_blksize()
  */
 static void lsp_file_inject_line(const char *line)
 {
+	if (*line == '\0')
+		return;		/* Ignore empty strings. */
+
 	lsp_file_add_line(line);
 
 	cf->size = LSP_FSIZE_UNKNOWN;
@@ -1780,7 +1783,7 @@ static ssize_t lsp_file_do_read(unsigned char *buffer_p, size_t size_to_read)
 		lsp_debug("%s: input file %s: %s",
 			  __func__, cf->name, strerror(errno));
 
-		/* When we read from ptmxfd given by forktty()
+		/* When we read from ptmxfd given by forkpty()
 		   we get EIO at the end of data.
 		   So, simulate normal EOF by setting nread = 0. */
 		if (errno == EIO)
@@ -5005,10 +5008,10 @@ static char *lsp_read_manpage_name()
 
 		len = lsp_file_do_read(&c, 1);
 
-		if (len == 1) {
-			name[i++] = c;
-			continue;
-		}
+		if (len != 1)
+			break;
+
+		name[i++] = c;
 	}
 
 	name[i] = '\0';
@@ -5434,10 +5437,17 @@ static void lsp_file_forward_words(size_t nwords)
 static void lsp_man_reposition(char *section)
 {
 	if (lsp_man_goto_section(section)) {
-		/* Section not found.
-		 * Use old behavior: use previous page_first and reposition to
-		 * BOL.
+		/* Section not found, try to stay at previous position.
+		 *
+		 * But if the content shrank so that our
+		 * previous page position isn't longer part of the file,
+		 * we simply position to the last page.
 		 */
+		if (cf->seek <= cf->page_first) {
+			lsp_cmd_goto_last_page();
+			cf->page_first = lsp_pos;
+		}
+
 		lsp_file_set_pos_bol(cf->page_first);
 	} else {
 		lsp_file_forward_empty_lines(lsp_reposition.elines);
