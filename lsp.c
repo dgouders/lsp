@@ -4164,7 +4164,7 @@ static void lsp_display_page()
 
 	regmatch_t *pmatch = NULL;
 	struct lsp_line_t *line = NULL;
-	size_t match_index = 0;
+	size_t match_count = 0;
 
 	/* Index of pmatch array that is the current match */
 	ssize_t lsp_cm_index;
@@ -4224,7 +4224,7 @@ static void lsp_display_page()
 		}
 
 		/* Find search matches in current line */
-		match_index = lsp_line_get_matches(line, &pmatch);
+		match_count = lsp_line_get_matches(line, &pmatch);
 
 		/*
 		 * We record a separate x position inside the current line.
@@ -4266,7 +4266,7 @@ static void lsp_display_page()
 			}
 
 			/* Highlight matches */
-			if (match_index) {
+			if (match_count) {
 				/* Emphasize found search matches. */
 				size_t i;
 
