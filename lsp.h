@@ -104,15 +104,13 @@ struct lsp_line_t {
 				 * correspond to lines in the window */
 };
 
-/*
- * Page context used while composing a page to display.
- */
 struct lsp_pg_ctx {
 	int y;			/* current line */
 	int x;			/* current column */
 	attr_t attr;		/* attribute for character output */
 	short pair;		/* color pair */
 	off_t top_line;		/* TOP line of TOC (if TOC mode) */
+	char sgr_active;	/* Remember if the text has SGR sequences in it. */
 };
 
 /*
@@ -332,6 +330,7 @@ static size_t			lsp_normalize_count(const char *, size_t, size_t);
 static void			lsp_open_cterm(void);
 static int			lsp_open_file(const char *);
 static void			lsp_open_manpage(char *);
+static void			lsp_page_display_line(struct lsp_line_t *, struct lsp_pg_ctx *);
 static void			lsp_page_process_lines(struct lsp_pg_ctx *);
 static bool			lsp_parent_is_restartable(const char *);
 static void			lsp_pinfo_dtor(void);

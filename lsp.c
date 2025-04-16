@@ -4142,68 +4142,373 @@ static int lsp_line_handle_leading_sgr(attr_t *attr, short *pair)
 }
 
 /*
- * Process the next lines from the current position of the current file to
- * display them as a page.
+ * Display the given line.
  */
-static void lsp_page_process_lines(struct lsp_pg_ctx *pctx)
+static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pctx)
 {
-	/* Remember if the text has SGR sequences in it. */
-	char sgr_active = 0;
+	/*
+	 * Amount of spaces we still need to insert to expand
+	 * a current TAB in the line.
+	 */
+	int tab_spaces = 0;
 
-	/* A line we are currently processing. */
-	struct lsp_line_t *line = NULL;
-
-	/* Index of pmatch array that is the current match */
-	ssize_t lsp_cm_index;
-
-	/* Count of search matches */
-	size_t match_count = 0;
-
-	/* Array with all the matches. */
-	regmatch_t *pmatch = NULL;
-
-	/* TOC top line; currently unset. */
-	pctx->top_line = (off_t)-1;
+	/*
+	 * We record a separate x position inside the current line.
+	 * This information is used for chopping and horizontal shifting.
+	 */
+	int line_x = 0;
 
 	/* Width of a wide character we currently process. */
 	size_t ch_len;
 
-	/* For conversion to cchar_t we need strings of wchar_t
-	   terminatet by L'\0'. */
+	/*
+	 * For conversion to cchar_t we need strings of wchar_t
+	 * terminatet by L'\0'.
+	 */
 	wchar_t ch[2] = { L'\0', L'\0' };
 	wchar_t next_ch = L'\0';
 	/* Needed to distinguish a bold '_' and italics. */
 	wchar_t next_ch2;
+
 	/* Complex char for cursesw routines. */
 	cchar_t cchar_ch[2];
+
+	/* Remember if we are currently inside a search match. */
+	int match_active = 0;
+
+	/* Count of search matches */
+	size_t match_index = 0;
+
+	/* Array with all the matches. */
+	regmatch_t *pmatch = NULL;
 
 	/* attr and pair saved when highlighting matches. */
 	attr_t attr_old;
 	short pair_old;
 
+	/* Index of pmatch array that is the current match */
+	ssize_t cm_index = -1;
+
+	/* Remember ongoing translation '\r' => "^M".
+	 * When a new line starts there is none.
+	 */
+	bool cr_active = false;
+
+	/* Find search matches in current line */
+	match_index = lsp_line_get_matches(line, &pmatch);
+
+	/*
+	 * Output our interpretation of the line to ncurses window.
+	 *
+	 * Caution: a line could be much longer than the width of the
+	 *          window and thus fill the remainder of the window.
+	 */
+	while ((lindex < line->len) && (pctx->y < (lsp_maxy - 1))) {
+		if (lsp_mode_is_toc() && pctx->top_line == (off_t)-1)
+			pctx->top_line = line->pos;
+
+		/* Convert tabs to spaces. */
+		if (line->current[0] == '\t')
+			tab_spaces = lsp_expand_tab(line_x);
+
+		/* Convert next wide character */
+		ch_len = lsp_mbtowc(ch, line->current, line->len - lindex);
+
+		/* Also get its following two characters */
+		if (lindex + ch_len == line->len) {
+			/* Force newline at the end of the line. */
+			next_ch = L'\n';
+		} else {
+			size_t l;
+			l = lsp_mbtowc(&next_ch, line->current + ch_len, line->len - (lindex + ch_len));
+			lsp_mbtowc(&next_ch2, line->current + ch_len + l, line->len - (lindex + ch_len + l));
+		}
+
+		/* Highlight matches */
+		if (match_index) {
+			/* Emphasize found search matches. */
+			size_t i;
+
+			for (i = 0; pmatch[i].rm_so != (off_t)-1; i++) {
+				/* Highlight the matches. */
+				if (pmatch[i].rm_so <= lindex &&
+				    pmatch[i].rm_eo >= lindex) {
+
+					if (pmatch[i].rm_so == lindex) {
+						attr_old = pctx->attr;
+						pair_old = pctx->pair;
+						match_active = 1;
+					}
+
+					if (lsp_mode_is_refs()) {
+						pctx->attr = A_UNDERLINE;
+						pctx->pair = LSP_UL_PAIR;
+					} else {
+						pctx->attr = A_STANDOUT;
+						pctx->pair = LSP_REVERSE_PAIR;
+					}
+
+					/* Notice if we are working on
+					   the current match. */
+					if (line->pos + lindex == cf->current_match.rm_so)
+						cm_index = i;
+				}
+
+				/* Notice the end of the match */
+				if (pmatch[i].rm_eo == lindex) {
+					pctx->attr = attr_old;
+					pctx->pair = pair_old;
+					match_active = 0;
+
+				}
+
+				/* Notice if it was the current match, remember its
+				   coords for positioning the cursor, later. */
+				if (cm_index == i && pmatch[i].rm_eo <= lindex) {
+					cf->cmatch_y = pctx->y;
+					cf->cmatch_x = pctx->x;
+
+					lsp_debug("Current match position = %d,%d",
+						  cf->cmatch_y, cf->cmatch_x);
+
+					cm_index = -1;
+				}
+
+				/* Stop at matches that start right of us. */
+				if (pmatch[i].rm_so > lindex)
+					break;
+			}
+		}
+
+		/*
+		 * Handle control characters to emphasize parts of the
+		 * text.
+		 *
+		 * Try to leave backspace sequences untouched that are
+		 * not grotty's legacy output: if see a backspace
+		 * in ch then it is definitely no such thing.
+		 *
+		 * Binary data could give us TAB being part of a
+		 * backslash sequence -- we don't touch those.
+		 */
+		attr_t attr_orig = pctx->attr;
+		while (ch[0] != '\t' && (ch[0] != L'\b' && next_ch == L'\b')) {
+			/*
+			 * According to grotty(1) there are three
+			 * possible backspace sequences:
+			 *
+			 * c \b c	=> bold c
+			 * _ \b c	=> italics c
+			 * _ \b c \b c	=> bold italics c
+			 */
+			size_t l;
+
+			if (attr_orig == A_NORMAL) {
+				if (ch[0] == L'_' && next_ch2 != L'_') {
+					pctx->attr = A_UNDERLINE;
+					pctx->pair = LSP_UL_PAIR;
+				} else if (ch[0] == next_ch2) {
+					pctx->attr |= A_BOLD;
+					pctx->pair = LSP_BOLD_PAIR;
+				}
+			}
+
+			line->current += ch_len + 1;
+
+			/* Convert tabs to spaces. */
+			if (line->current[0] == '\t')
+				tab_spaces = lsp_expand_tab(line_x);
+
+			ch_len = lsp_mbtowc(ch, line->current, line->len - lindex);
+			l = lsp_mbtowc(&next_ch, line->current + ch_len, line->len - (lindex + ch_len));
+			lsp_mbtowc(&next_ch2, line->current + ch_len + l, line->len - (lindex + ch_len + l));
+		}
+
+		while (lsp_is_sgr_sequence(line->current)) {
+			size_t l;
+			/* Get attributes according to SGR
+			 * sequence.  We could be inside a
+			 * search match and in this case we
+			 * need to set attribute/color for the
+			 * part after the match. */
+			if (match_active)
+				l = lsp_decode_sgr(line->current, &attr_old, &pair_old);
+			else
+				l = lsp_decode_sgr(line->current, &pctx->attr, &pctx->pair);
+
+			/* Only use correct SGR sequences. */
+			if (l == (size_t)-1)
+				break;
+			else {
+				if (l > 1)
+					pctx->sgr_active = 1;
+				line->current += l;
+				if (lindex >= line->len)
+					goto line_done;
+
+				/* Convert tabs to spaces. */
+				if (line->current[0] == '\t')
+					tab_spaces = lsp_expand_tab(line_x);
+
+				/* Convert next wide character */
+				ch_len = lsp_mbtowc(ch, line->current, line->len - lindex);
+				/* No fetch of next_ch, because that would only be meaningful,
+				   if we supported a mixture of backspace and SGR sequences.
+				   We don't. */
+			}
+		}
+
+		/* Record position of last TOC entry or first byte not part of this page. */
+		if (lsp_mode_is_toc()) {
+			cf->toc_last = cf->toc->next;
+		} else {
+			cf->page_last = line->pos + lindex + 1;
+		}
+
+		/* Expand TAB with spaces */
+		if (ch[0] == '\t' && tab_spaces)
+			ch[0] = ' ';
+
+		/*
+		 * line_x: we maintain an artificial x position inside
+		 * the current line.
+		 * This information is used for horizontal shifting.
+		 */
+		if (line_x >= lsp_shift || ch[0] == '\n') {
+			/* Chop the line if we reach the width of the
+			   window. */
+			if (lsp_chop_lines && pctx->x == lsp_maxx - 1) {
+				if (next_ch != '\n')
+					ch[0] = '>';
+
+				setcchar(cchar_ch, ch, pctx->attr, pctx->pair, NULL);
+
+				mvwadd_wch(lsp_win, pctx->y, pctx->x, cchar_ch);
+
+				getyx(lsp_win, pctx->y, pctx->x);
+				break;
+			}
+
+			if (lsp_mode_is_toc()) {
+				if (lindex == 0) {
+					/* Avoid nirvana cursor on last page. */
+					if (!cf->toc->next)
+						if (cf->toc_cursor > pctx->y)
+							cf->toc_cursor = pctx->y;
+				}
+
+				/* Highlight cursor line if we are not searching. */
+				if (!lsp_mode_is_highlight() && pctx->y == cf->toc_cursor) {
+					pctx->attr = A_REVERSE;
+					pctx->pair = LSP_REVERSE_PAIR;
+				}
+			}
+
+			/* Handle carriage return characters
+			 * Because we replace a single char '\r' by two "^M", we
+			 * need a flag to tell us we are currently doing
+			 * such a translation.
+			 * In the first round, output '^' and set the
+			 * flag and in the second round output 'M' and
+			 * turn off that flag.
+			 */
+			if (!lsp_keep_cr && (ch[0] == '\r' || cr_active)) {
+				if (cr_active) {
+					ch[0] = 'M';
+					cr_active = false;
+				} else {
+					ch[0] = '^';
+					cr_active = true;
+				}
+			}
+
+			/* All the above happened to finaly output a
+			 * single character */
+			setcchar(cchar_ch, ch, pctx->attr, pctx->pair, NULL);
+
+			mvwadd_wch(lsp_win, pctx->y, pctx->x, cchar_ch);
+
+			getyx(lsp_win, pctx->y, pctx->x);
+
+			/* Line is done if ncurses already skipped to the next
+			   line and we only have a linefeed left in this
+			   line. */
+			if (pctx->x == 0) {
+				/* The line could end with an SGR
+				   sequence before the linefeed */
+				size_t l_offset = lindex + ch_len;
+
+				/* Consume SGR sequences if any */
+				l_offset += lsp_skip_sgr(line->raw + l_offset,
+							 line->len - l_offset);
+
+				/* Read correct next_ch if there was an SGR sequence */
+				if (l_offset != lindex + ch_len)
+					lsp_mbtowc(&next_ch, line->raw + l_offset, line->len - l_offset);
+
+				if (next_ch == L'\n')
+					break;
+			}
+		}
+
+		line_x++;
+
+		/* Reset attributes if we are not in a search match or
+		   an SGR sequence. */
+		if (pctx->attr != A_NORMAL && cm_index == -1)
+			if (!pctx->sgr_active) {
+				pctx->attr = A_NORMAL;
+				pctx->pair = LSP_DEFAULT_PAIR;
+			}
+
+		/* Stay at position in line, if we are currently
+		   processing the expansion of a TAB character. */
+		if (tab_spaces) {
+			assert(line->current[0] == '\t');
+
+			/* Advance in line if we are done with
+			   expansion. */
+			if (--tab_spaces == 0)
+				line->current++;
+		} else if (cr_active == false)
+			/* Don't go ahead when we are currently
+			   translating '\r' to "^M'. */
+			line->current += ch_len;
+	}
+
+line_done:
+	free(pmatch);
+	pmatch = NULL;
+}
+
+/*
+ * Process the next lines from the current position of the current file to
+ * display them as a page.
+ */
+static void lsp_page_process_lines(struct lsp_pg_ctx *pctx)
+{
+	/* A line we are currently processing. */
+	struct lsp_line_t *line = NULL;
+
+	/* TOC top line; currently unset. */
+	pctx->top_line = (off_t)-1;
+
 	/*
 	 * Process lines until EOF or the window is filled.
 	 */
 	while (pctx->y < (lsp_maxy - 1)) {
-		/* Remember ongoing translation '\r' => "^M"
-		 * When a new line starts there is none.
-		 */
-		bool cr_active = false;
-
 		pctx->attr = A_NORMAL;
 		pctx->pair = LSP_DEFAULT_PAIR;
+		pctx->sgr_active = 0;
 
 		/* If we have long lines that consume multiple lines on the page
 		   we need to process SGR sequences that might be in the
 		   previous part of the line. */
 		if (!lsp_file_is_at_bol())
 			if (lsp_line_handle_leading_sgr(&pctx->attr, &pctx->pair))
-				sgr_active = 1;
+				pctx->sgr_active = 1;
 
 		lsp_line_dtor(line);
-
-		/* We didn't hit the current match when starting a new line. */
-		lsp_cm_index = -1;
 
 		line = lsp_get_next_display_line();
 
@@ -4217,302 +4522,7 @@ static void lsp_page_process_lines(struct lsp_pg_ctx *pctx)
 			getyx(lsp_win, pctx->y, pctx->x);
 		}
 
-		/* Find search matches in current line */
-		match_count = lsp_line_get_matches(line, &pmatch);
-
-		/*
-		 * We record a separate x position inside the current line.
-		 * This information is used for chopping and horizontal shifting.
-		 */
-		int line_x = 0;
-		/* Amount of spaces we still need to insert to expand a current
-		   TAB in the line. */
-		int tab_spaces = 0;
-
-		/* Remember if we are currently inside a search match. */
-		int match_active = 0;
-
-		/*
-		 * Output our interpretation of the line to ncurses window.
-		 *
-		 * Caution: a line could be much longer than the width of the
-		 *          window and thus fill the remainder of the window.
-		 */
-		while ((lindex < line->len) && (pctx->y < (lsp_maxy - 1))) {
-			if (lsp_mode_is_toc() && pctx->top_line == (off_t)-1)
-				pctx->top_line = line->pos;
-
-			/* Convert tabs to spaces. */
-			if (line->current[0] == '\t')
-				tab_spaces = lsp_expand_tab(line_x);
-
-			/* Convert next wide character */
-			ch_len = lsp_mbtowc(ch, line->current, line->len - lindex);
-
-			/* Also get its following two characters */
-			if (lindex + ch_len == line->len) {
-				/* Force newline at the end of the line. */
-				next_ch = L'\n';
-			} else {
-				size_t l;
-				l = lsp_mbtowc(&next_ch, line->current + ch_len, line->len - (lindex + ch_len));
-				lsp_mbtowc(&next_ch2, line->current + ch_len + l, line->len - (lindex + ch_len + l));
-			}
-
-			/* Highlight matches */
-			if (match_count) {
-				/* Emphasize found search matches. */
-				size_t i;
-
-				for (i = 0; pmatch[i].rm_so != (off_t)-1; i++) {
-					/* Highlight the matches. */
-					if (pmatch[i].rm_so <= lindex &&
-						pmatch[i].rm_eo >= lindex) {
-
-						if (pmatch[i].rm_so == lindex) {
-							attr_old = pctx->attr;
-							pair_old = pctx->pair;
-							match_active = 1;
-						}
-
-						if (lsp_mode_is_refs()) {
-							pctx->attr = A_UNDERLINE;
-							pctx->pair = LSP_UL_PAIR;
-						} else {
-							pctx->attr = A_STANDOUT;
-							pctx->pair = LSP_REVERSE_PAIR;
-						}
-
-						/* Notice if we are working on
-						   the current match. */
-						if (line->pos + lindex == cf->current_match.rm_so)
-							lsp_cm_index = i;
-					}
-
-					/* Notice the end of the match */
-					if (pmatch[i].rm_eo == lindex) {
-						pctx->attr = attr_old;
-						pctx->pair = pair_old;
-						match_active = 0;
-
-					}
-
-					/* Notice if it was the current match, remember its
-					   coords for positioning the cursor, later. */
-					if (lsp_cm_index == i && pmatch[i].rm_eo <= lindex) {
-						cf->cmatch_y = pctx->y;
-						cf->cmatch_x = pctx->x;
-
-						lsp_debug("Current match position = %d,%d",
-							  cf->cmatch_y, cf->cmatch_x);
-
-						lsp_cm_index = -1;
-					}
-
-					/* Stop at matches that start right of us. */
-					if (pmatch[i].rm_so > lindex)
-						break;
-				}
-			}
-
-			/*
-			 * Handle control characters to emphasize parts of the
-			 * text.
-			 *
-			 * Try to leave backspace sequences untouched that are
-			 * not grotty's legacy output: if we hit a backspace
-			 * with ch then it is definitely no such thing.
-			 *
-			 * Binary data could give us TAB being part of a
-			 * backslash sequence -- we don't touch those.
-			 */
-			attr_t attr_orig = pctx->attr;
-			while (ch[0] != '\t' && (ch[0] != L'\b' && next_ch == L'\b')) {
-				/*
-				 * According to grotty(1) there are three
-				 * possible backspace sequences:
-				 *
-				 * c \b c	=> bold c
-				 * _ \b c	=> italics c
-				 * _ \b c \b c	=> bold italics c
-				 */
-				size_t l;
-
-				if (attr_orig == A_NORMAL) {
-					if (ch[0] == L'_' && next_ch2 != L'_') {
-						pctx->attr = A_UNDERLINE;
-						pctx->pair = LSP_UL_PAIR;
-					} else if (ch[0] == next_ch2) {
-						pctx->attr |= A_BOLD;
-						pctx->pair = LSP_BOLD_PAIR;
-					}
-				}
-
-				line->current += ch_len + 1;
-
-				/* Convert tabs to spaces. */
-				if (line->current[0] == '\t')
-					tab_spaces = lsp_expand_tab(line_x);
-
-				ch_len = lsp_mbtowc(ch, line->current, line->len - lindex);
-				l = lsp_mbtowc(&next_ch, line->current + ch_len, line->len - (lindex + ch_len));
-				lsp_mbtowc(&next_ch2, line->current + ch_len + l, line->len - (lindex + ch_len + l));
-			}
-
-			while (lsp_is_sgr_sequence(line->current)) {
-				size_t l;
-				/* Get attributes according to SGR
-				 * sequence.  We could be inside a
-				 * search match and in this case we
-				 * need to set attribute/color for the
-				 * part after the match. */
-				if (match_active)
-					l = lsp_decode_sgr(line->current, &attr_old, &pair_old);
-				else
-					l = lsp_decode_sgr(line->current, &pctx->attr, &pctx->pair);
-
-				/* Only use correct SGR sequences. */
-				if (l == (size_t)-1)
-					break;
-				else {
-					if (l > 1)
-						sgr_active = 1;
-					line->current += l;
-					if (lindex >= line->len)
-						goto line_done;
-
-					/* Convert tabs to spaces. */
-					if (line->current[0] == '\t')
-						tab_spaces = lsp_expand_tab(line_x);
-
-					/* Convert next wide character */
-					ch_len = lsp_mbtowc(ch, line->current, line->len - lindex);
-					/* No fetch of next_ch, because that would only be meaningful,
-					   if we supported a mixture of backspace and SGR sequences.
-					   We don't. */
-				}
-			}
-
-			/* Record position of last TOC entry or first byte not part of this page. */
-			if (lsp_mode_is_toc()) {
-				cf->toc_last = cf->toc->next;
-			} else {
-				cf->page_last = line->pos + lindex + 1;
-			}
-
-			/* Expand TAB with spaces */
-			if (ch[0] == '\t' && tab_spaces)
-				ch[0] = ' ';
-
-			/*
-			 * line_x: we maintain an artificial x position inside
-			 * the current line.
-			 * This information is used for horizontal shifting.
-			 */
-			if (line_x >= lsp_shift || ch[0] == '\n') {
-				/* Chop the line if we reach the width of the
-				   window. */
-				if (lsp_chop_lines && pctx->x == lsp_maxx - 1) {
-					if (next_ch != '\n')
-						ch[0] = '>';
-
-					setcchar(cchar_ch, ch, pctx->attr, pctx->pair, NULL);
-
-					mvwadd_wch(lsp_win, pctx->y, pctx->x, cchar_ch);
-
-					getyx(lsp_win, pctx->y, pctx->x);
-					break;
-				}
-
-				if (lsp_mode_is_toc()) {
-					if (lindex == 0) {
-						/* Avoid nirvana cursor on last page. */
-						if (!cf->toc->next)
-							if (cf->toc_cursor > pctx->y)
-								cf->toc_cursor = pctx->y;
-					}
-
-					/* Highlight cursor line if we are not searching. */
-					if (!lsp_mode_is_highlight() && pctx->y == cf->toc_cursor) {
-						pctx->attr = A_REVERSE;
-						pctx->pair = LSP_REVERSE_PAIR;
-					}
-				}
-
-				/* Handle carriage return characters
-				 * Because we replace a single char '\r' by two "^M", we
-				 * need a flag to tell us we are currently doing
-				 * such a translation.
-				 * In the first round, output '^' and set the
-				 * flag and in the second round output 'M' and
-				 * turn off that flag.
-				 */
-				if (!lsp_keep_cr && (ch[0] == '\r' || cr_active)) {
-					if (cr_active) {
-						ch[0] = 'M';
-						cr_active = false;
-					} else {
-						ch[0] = '^';
-						cr_active = true;
-					}
-				}
-
-				/* All the above happened to finaly output a
-				 * single character */
-				setcchar(cchar_ch, ch, pctx->attr, pctx->pair, NULL);
-
-				mvwadd_wch(lsp_win, pctx->y, pctx->x, cchar_ch);
-
-				getyx(lsp_win, pctx->y, pctx->x);
-
-				/* Line is done if ncurses already skipped to the next
-				   line and we only have a linefeed left in this
-				   line. */
-				if (pctx->x == 0) {
-					/* The line could end with an SGR
-					   sequence before the linefeed */
-					size_t l_offset = lindex + ch_len;
-
-					/* Consume SGR sequences if any */
-					l_offset += lsp_skip_sgr(line->raw + l_offset,
-								 line->len - l_offset);
-
-					/* Read correct next_ch if there was an SGR sequence */
-					if (l_offset != lindex + ch_len)
-						lsp_mbtowc(&next_ch, line->raw + l_offset, line->len - l_offset);
-
-					if (next_ch == L'\n')
-						break;
-				}
-			}
-
-			line_x++;
-
-			/* Reset attributes if we are not in a search match or
-			   an SGR sequence. */
-			if (pctx->attr != A_NORMAL && lsp_cm_index == -1)
-				if (!sgr_active) {
-					pctx->attr = A_NORMAL;
-					pctx->pair = LSP_DEFAULT_PAIR;
-				}
-
-			/* Stay at position in line, if we are currently
-			   processing the expansion of a TAB character. */
-			if (tab_spaces) {
-				assert(line->current[0] == '\t');
-
-				/* Advance in line if we are done with
-				   expansion. */
-				if (--tab_spaces == 0)
-					line->current++;
-			} else if (cr_active == false)
-				/* Don't go ahead when we are currently
-				   translating '\r' to "^M'. */
-				line->current += ch_len;
-		}
-line_done:
-		free(pmatch);
-		pmatch = NULL;
+		lsp_page_display_line(line, pctx);
 
 		if (lsp_mode_is_toc()) {
 			if (!cf->toc->next)
