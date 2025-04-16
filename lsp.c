@@ -4385,7 +4385,7 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 				mvwadd_wch(lsp_win, pctx->y, pctx->x, cchar_ch);
 
 				getyx(lsp_win, pctx->y, pctx->x);
-				break;
+				goto line_done;
 			}
 
 			if (lsp_mode_is_toc()) {
@@ -4446,7 +4446,7 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 					lsp_mbtowc(&next_ch, line->raw + l_offset, line->len - l_offset);
 
 				if (next_ch == L'\n')
-					break;
+					goto line_done;
 			}
 		}
 
