@@ -4142,6 +4142,75 @@ static int lsp_line_handle_leading_sgr(attr_t *attr, short *pair)
 }
 
 /*
+ * Handle matches for current position in given line of the page currently being
+ * composed.
+ *
+ * The function name is a bit misleading, because this function does _not_
+ * handle all search matches in a page at once but for current positions in a
+ * line; it is called for each character position in each line to handle search
+ * matches.
+ *
+ * As soon as a better function name is in sight, we will use that better one.
+ */
+static void lsp_page_handle_matches(struct lsp_line_t *line, struct lsp_pg_ctx *pctx)
+{
+	size_t i;
+
+	if (!pctx->match_count)
+		return;		/* No search matches to highlight. */
+
+	for (i = 0; pctx->pmatch[i].rm_so != (off_t)-1; i++) {
+		/* Stop at matches that start right of us. */
+		if (pctx->pmatch[i].rm_so > lindex)
+			break;
+
+		/* Highlight the matches. */
+		if (pctx->pmatch[i].rm_so <= lindex &&
+		    pctx->pmatch[i].rm_eo >= lindex) {
+
+			if (pctx->pmatch[i].rm_so == lindex) {
+				pctx->attr_old = pctx->attr;
+				pctx->pair_old = pctx->pair;
+				pctx->match_active = 1;
+			}
+
+			if (lsp_mode_is_refs()) {
+				pctx->attr = A_UNDERLINE;
+				pctx->pair = LSP_UL_PAIR;
+			} else {
+				pctx->attr = A_STANDOUT;
+				pctx->pair = LSP_REVERSE_PAIR;
+			}
+
+			/* Notice if we are working on
+			   the current match. */
+			if (line->pos + lindex == cf->current_match.rm_so)
+				pctx->cm_index = i;
+		}
+
+		/* Notice the end of the match */
+		if (pctx->pmatch[i].rm_eo == lindex) {
+			pctx->attr = pctx->attr_old;
+			pctx->pair = pctx->pair_old;
+			pctx->match_active = 0;
+
+		}
+
+		/* Notice if it was the current match, remember its
+		   coords for positioning the cursor, later. */
+		if (pctx->cm_index == i && pctx->pmatch[i].rm_eo <= lindex) {
+			cf->cmatch_y = pctx->y;
+			cf->cmatch_x = pctx->x;
+
+			lsp_debug("Current match position = %d,%d",
+				  cf->cmatch_y, cf->cmatch_x);
+
+			pctx->cm_index = -1;
+		}
+	}
+}
+
+/*
  * Display the given line.
  */
 static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pctx)
@@ -4173,29 +4242,13 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 	/* Complex char for cursesw routines. */
 	cchar_t cchar_ch[2];
 
-	/* Remember if we are currently inside a search match. */
-	int match_active = 0;
-
-	/* Count of search matches */
-	size_t match_index = 0;
-
-	/* Array with all the matches. */
-	regmatch_t *pmatch = NULL;
-
-	/* attr and pair saved when highlighting matches. */
-	attr_t attr_old;
-	short pair_old;
-
-	/* Index of pmatch array that is the current match */
-	ssize_t cm_index = -1;
-
 	/* Remember ongoing translation '\r' => "^M".
 	 * When a new line starts there is none.
 	 */
 	bool cr_active = false;
 
 	/* Find search matches in current line */
-	match_index = lsp_line_get_matches(line, &pmatch);
+	pctx->match_count = lsp_line_get_matches(line, &pctx->pmatch);
 
 	/*
 	 * Output our interpretation of the line to ncurses window.
@@ -4224,61 +4277,7 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 			lsp_mbtowc(&next_ch2, line->current + ch_len + l, line->len - (lindex + ch_len + l));
 		}
 
-		/* Highlight matches */
-		if (match_index) {
-			/* Emphasize found search matches. */
-			size_t i;
-
-			for (i = 0; pmatch[i].rm_so != (off_t)-1; i++) {
-				/* Highlight the matches. */
-				if (pmatch[i].rm_so <= lindex &&
-				    pmatch[i].rm_eo >= lindex) {
-
-					if (pmatch[i].rm_so == lindex) {
-						attr_old = pctx->attr;
-						pair_old = pctx->pair;
-						match_active = 1;
-					}
-
-					if (lsp_mode_is_refs()) {
-						pctx->attr = A_UNDERLINE;
-						pctx->pair = LSP_UL_PAIR;
-					} else {
-						pctx->attr = A_STANDOUT;
-						pctx->pair = LSP_REVERSE_PAIR;
-					}
-
-					/* Notice if we are working on
-					   the current match. */
-					if (line->pos + lindex == cf->current_match.rm_so)
-						cm_index = i;
-				}
-
-				/* Notice the end of the match */
-				if (pmatch[i].rm_eo == lindex) {
-					pctx->attr = attr_old;
-					pctx->pair = pair_old;
-					match_active = 0;
-
-				}
-
-				/* Notice if it was the current match, remember its
-				   coords for positioning the cursor, later. */
-				if (cm_index == i && pmatch[i].rm_eo <= lindex) {
-					cf->cmatch_y = pctx->y;
-					cf->cmatch_x = pctx->x;
-
-					lsp_debug("Current match position = %d,%d",
-						  cf->cmatch_y, cf->cmatch_x);
-
-					cm_index = -1;
-				}
-
-				/* Stop at matches that start right of us. */
-				if (pmatch[i].rm_so > lindex)
-					break;
-			}
-		}
+		lsp_page_handle_matches(line, pctx);
 
 		/*
 		 * Handle control characters to emphasize parts of the
@@ -4331,8 +4330,8 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 			 * search match and in this case we
 			 * need to set attribute/color for the
 			 * part after the match. */
-			if (match_active)
-				l = lsp_decode_sgr(line->current, &attr_old, &pair_old);
+			if (pctx->match_active)
+				l = lsp_decode_sgr(line->current, &pctx->attr_old, &pctx->pair_old);
 			else
 				l = lsp_decode_sgr(line->current, &pctx->attr, &pctx->pair);
 
@@ -4455,7 +4454,7 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 
 		/* Reset attributes if we are not in a search match or
 		   an SGR sequence. */
-		if (pctx->attr != A_NORMAL && cm_index == -1)
+		if (pctx->attr != A_NORMAL && pctx->cm_index == -1)
 			if (!pctx->sgr_active) {
 				pctx->attr = A_NORMAL;
 				pctx->pair = LSP_DEFAULT_PAIR;
@@ -4477,8 +4476,8 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 	}
 
 line_done:
-	free(pmatch);
-	pmatch = NULL;
+	free(pctx->pmatch);
+	pctx->pmatch = NULL;
 }
 
 /*
@@ -4548,7 +4547,11 @@ static void lsp_display_page()
 
 	struct lsp_pg_ctx pctx = {
 		.x = 0,
-		.y = 0
+		.y = 0,
+		.match_count = 0,
+		.pmatch = NULL,
+		.cm_index = -1,
+		.match_active = 0
 	};
 
 	/* Reload file if necessary, e.g. after a resize. */

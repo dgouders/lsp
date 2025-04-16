@@ -104,13 +104,26 @@ struct lsp_line_t {
 				 * correspond to lines in the window */
 };
 
+/*
+ * Page context used while composing a page to display.
+ */
 struct lsp_pg_ctx {
 	int y;			/* current line */
 	int x;			/* current column */
+
 	attr_t attr;		/* attribute for character output */
-	short pair;		/* color pair */
+	short pair;		/* color pair for character output */
+	attr_t attr_old;	/* attr saved when highlighting matches */
+	short pair_old;		/* pair saved when highlighting matches */
+
 	off_t top_line;		/* TOP line of TOC (if TOC mode) */
-	char sgr_active;	/* Remember if the text has SGR sequences in it. */
+
+	char sgr_active;	/* flag for currently active SGR sequences */
+
+	size_t match_count;	/* count of search matches */
+	regmatch_t *pmatch;	/* array with all the matches */
+	ssize_t cm_index;	/* index of pmatch array that is the current match */
+	int match_active;	/* flag if currently highlighting a match */
 };
 
 /*
@@ -331,6 +344,7 @@ static void			lsp_open_cterm(void);
 static int			lsp_open_file(const char *);
 static void			lsp_open_manpage(char *);
 static void			lsp_page_display_line(struct lsp_line_t *, struct lsp_pg_ctx *);
+static void			lsp_page_handle_matches(struct lsp_line_t *, struct lsp_pg_ctx *);
 static void			lsp_page_process_lines(struct lsp_pg_ctx *);
 static bool			lsp_parent_is_restartable(const char *);
 static void			lsp_pinfo_dtor(void);
