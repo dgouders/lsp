@@ -4211,41 +4211,135 @@ static void lsp_page_handle_matches(struct lsp_line_t *line, struct lsp_pg_ctx *
 }
 
 /*
+ * Display the next character in the given line at the current position in the
+ * page (all given in pctx).
+ *
+ * Return:
+ *   1     the output of that character has the side-effect that we are done
+ *         with the current line,
+ *   0     otherwise.
+ */
+static int lsp_page_display_char(struct lsp_line_t *line, struct lsp_pg_ctx *pctx)
+{
+	cchar_t cchar_ch[2];	/* Complex char for cursesw routines. */
+
+	/*
+	 * line_x is an artificial x position inside the current line.
+	 *
+	 * When horizontal shifting is active, we need to *not* display
+	 * those characters that have been shifted out to the left.
+	 */
+	if (pctx->line_x < lsp_shift && pctx->ch[0] != '\n')
+		return 0;
+
+	/*
+	 * Chop the line when we reach the width of the window.
+	 */
+	if (lsp_chop_lines && pctx->x == lsp_maxx - 1) {
+		if (pctx->next_ch != '\n')
+			pctx->ch[0] = '>';
+
+		setcchar(cchar_ch, pctx->ch, pctx->attr, pctx->pair, NULL);
+
+		mvwadd_wch(lsp_win, pctx->y, pctx->x, cchar_ch);
+
+		getyx(lsp_win, pctx->y, pctx->x);
+		return 1;
+	}
+
+	if (lsp_mode_is_toc()) {
+		if (lindex == 0		&&
+		    !cf->toc->next	&&  /* Avoid nirvana cursor on last page. */
+		    cf->toc_cursor > pctx->y)
+			cf->toc_cursor = pctx->y;
+
+		/* Highlight cursor line when we aren't searching. */
+		if (!lsp_mode_is_highlight() && pctx->y == cf->toc_cursor) {
+			pctx->attr = A_REVERSE;
+			pctx->pair = LSP_REVERSE_PAIR;
+		}
+	}
+
+	/*
+	 * Handle carriage return characters
+	 * Because we replace a single char '\r' by two "^M", we
+	 * need a flag to tell us we are currently doing
+	 * such a translation.
+	 * In the first round, output '^' and set the
+	 * flag and in the second round output 'M' and
+	 * turn that flag off.
+	 */
+	if (!lsp_keep_cr && (pctx->ch[0] == '\r' || pctx->cr_active)) {
+		if (pctx->cr_active) {
+			pctx->ch[0] = 'M';
+			pctx->cr_active = false;
+		} else {
+			pctx->ch[0] = '^';
+			pctx->cr_active = true;
+		}
+	}
+
+	/*
+	 * All the above happened to finally output a single character.
+	 */
+	setcchar(cchar_ch, pctx->ch, pctx->attr, pctx->pair, NULL);
+
+	mvwadd_wch(lsp_win, pctx->y, pctx->x, cchar_ch);
+
+	getyx(lsp_win, pctx->y, pctx->x);
+
+	if (pctx->x > 0)
+		return 0;
+
+	/*
+	 * pctx-> x == 0
+	 * Line is done if ncurses skipped to the next line and
+	 * we only have a linefeed left in this line.
+	 */
+	/*
+	 * The line could end with an SGR sequence before the
+	 * linefeed.
+	 */
+	size_t l_offset = lindex + pctx->ch_len;
+
+	/* Consume SGR sequences if any */
+	l_offset += lsp_skip_sgr(line->raw + l_offset,
+				 line->len - l_offset);
+
+	/* Read correct next_ch if there was an SGR sequence */
+	if (l_offset != lindex + pctx->ch_len)
+		lsp_mbtowc(&pctx->next_ch, line->raw + l_offset,
+			   line->len - l_offset);
+
+	if (pctx->next_ch == L'\n')
+		return 1;
+
+	return 0;
+}
+
+/*
  * Display the given line.
  */
 static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pctx)
 {
-	/*
-	 * Amount of spaces we still need to insert to expand
-	 * a current TAB in the line.
-	 */
+	/* The next chars in the line -- not yet known. */
+	pctx->ch[0]   = L'\0';
+	pctx->ch[1]   = L'\0';
+	pctx->next_ch = L'\0';
+
+	/* Amount of spaces needed to expand a current TAB in the line. */
 	int tab_spaces = 0;
 
-	/*
-	 * We record a separate x position inside the current line.
-	 * This information is used for chopping and horizontal shifting.
-	 */
-	int line_x = 0;
-
-	/* Width of a wide character we currently process. */
-	size_t ch_len;
+	int ret;
 
 	/*
-	 * For conversion to cchar_t we need strings of wchar_t
-	 * terminatet by L'\0'.
-	 */
-	wchar_t ch[2] = { L'\0', L'\0' };
-	wchar_t next_ch = L'\0';
-	/* Needed to distinguish a bold '_' and italics. */
-	wchar_t next_ch2;
-
-	/* Complex char for cursesw routines. */
-	cchar_t cchar_ch[2];
-
-	/* Remember ongoing translation '\r' => "^M".
+	 * Remember ongoing translation '\r' => "^M".
 	 * When a new line starts there is none.
 	 */
-	bool cr_active = false;
+	pctx->cr_active = false;
+
+	/* New lines start with fresh line_x. */
+	pctx->line_x = 0;
 
 	/* Find search matches in current line */
 	pctx->match_count = lsp_line_get_matches(line, &pctx->pmatch);
@@ -4262,19 +4356,21 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 
 		/* Convert tabs to spaces. */
 		if (line->current[0] == '\t')
-			tab_spaces = lsp_expand_tab(line_x);
+			tab_spaces = lsp_expand_tab(pctx->line_x);
 
 		/* Convert next wide character */
-		ch_len = lsp_mbtowc(ch, line->current, line->len - lindex);
+		pctx->ch_len = lsp_mbtowc(pctx->ch, line->current, line->len - lindex);
 
 		/* Also get its following two characters */
-		if (lindex + ch_len == line->len) {
+		if (lindex + pctx->ch_len == line->len) {
 			/* Force newline at the end of the line. */
-			next_ch = L'\n';
+			pctx->next_ch = L'\n';
 		} else {
 			size_t l;
-			l = lsp_mbtowc(&next_ch, line->current + ch_len, line->len - (lindex + ch_len));
-			lsp_mbtowc(&next_ch2, line->current + ch_len + l, line->len - (lindex + ch_len + l));
+			l = lsp_mbtowc(&pctx->next_ch, line->current + pctx->ch_len,
+				       line->len - (lindex + pctx->ch_len));
+			lsp_mbtowc(&pctx->next_ch2, line->current + pctx->ch_len + l,
+				   line->len - (lindex + pctx->ch_len + l));
 		}
 
 		lsp_page_handle_matches(line, pctx);
@@ -4291,7 +4387,7 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 		 * backslash sequence -- we don't touch those.
 		 */
 		attr_t attr_orig = pctx->attr;
-		while (ch[0] != '\t' && (ch[0] != L'\b' && next_ch == L'\b')) {
+		while (pctx->ch[0] != '\t' && (pctx->ch[0] != L'\b' && pctx->next_ch == L'\b')) {
 			/*
 			 * According to grotty(1) there are three
 			 * possible backspace sequences:
@@ -4303,24 +4399,27 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 			size_t l;
 
 			if (attr_orig == A_NORMAL) {
-				if (ch[0] == L'_' && next_ch2 != L'_') {
+				if (pctx->ch[0] == L'_' && pctx->next_ch2 != L'_') {
 					pctx->attr = A_UNDERLINE;
 					pctx->pair = LSP_UL_PAIR;
-				} else if (ch[0] == next_ch2) {
+				} else if (pctx->ch[0] == pctx->next_ch2) {
 					pctx->attr |= A_BOLD;
 					pctx->pair = LSP_BOLD_PAIR;
 				}
 			}
 
-			line->current += ch_len + 1;
+			line->current += pctx->ch_len + 1;
 
 			/* Convert tabs to spaces. */
 			if (line->current[0] == '\t')
-				tab_spaces = lsp_expand_tab(line_x);
+				tab_spaces = lsp_expand_tab(pctx->line_x);
 
-			ch_len = lsp_mbtowc(ch, line->current, line->len - lindex);
-			l = lsp_mbtowc(&next_ch, line->current + ch_len, line->len - (lindex + ch_len));
-			lsp_mbtowc(&next_ch2, line->current + ch_len + l, line->len - (lindex + ch_len + l));
+			pctx->ch_len = lsp_mbtowc(pctx->ch, line->current,
+						  line->len - lindex);
+			l = lsp_mbtowc(&pctx->next_ch, line->current + pctx->ch_len,
+				       line->len - (lindex + pctx->ch_len));
+			lsp_mbtowc(&pctx->next_ch2, line->current + pctx->ch_len + l,
+				   line->len - (lindex + pctx->ch_len + l));
 		}
 
 		while (lsp_is_sgr_sequence(line->current)) {
@@ -4331,9 +4430,11 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 			 * need to set attribute/color for the
 			 * part after the match. */
 			if (pctx->match_active)
-				l = lsp_decode_sgr(line->current, &pctx->attr_old, &pctx->pair_old);
+				l = lsp_decode_sgr(line->current, &pctx->attr_old,
+						   &pctx->pair_old);
 			else
-				l = lsp_decode_sgr(line->current, &pctx->attr, &pctx->pair);
+				l = lsp_decode_sgr(line->current, &pctx->attr,
+						   &pctx->pair);
 
 			/* Only use correct SGR sequences. */
 			if (l == (size_t)-1)
@@ -4347,13 +4448,16 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 
 				/* Convert tabs to spaces. */
 				if (line->current[0] == '\t')
-					tab_spaces = lsp_expand_tab(line_x);
+					tab_spaces = lsp_expand_tab(pctx->line_x);
 
 				/* Convert next wide character */
-				ch_len = lsp_mbtowc(ch, line->current, line->len - lindex);
-				/* No fetch of next_ch, because that would only be meaningful,
-				   if we supported a mixture of backspace and SGR sequences.
-				   We don't. */
+				pctx->ch_len = lsp_mbtowc(pctx->ch, line->current,
+							  line->len - lindex);
+				/*
+				 * No fetch of next_ch, because that would only
+				 * be meaningful, if we supported a mixture of
+				 * backspace and SGR sequences. We don't.
+				 */
 			}
 		}
 
@@ -4365,114 +4469,46 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 		}
 
 		/* Expand TAB with spaces */
-		if (ch[0] == '\t' && tab_spaces)
-			ch[0] = ' ';
+		if (pctx->ch[0] == '\t' && tab_spaces)
+			pctx->ch[0] = ' ';
+
+		/* Output the current character. */
+		ret = lsp_page_display_char(line, pctx);
+
+		if (ret)
+			goto line_done;
+
+		pctx->line_x++;
 
 		/*
-		 * line_x: we maintain an artificial x position inside
-		 * the current line.
-		 * This information is used for horizontal shifting.
+		 * Reset attributes if we are not in a search match or
+		 * an SGR sequence.
 		 */
-		if (line_x >= lsp_shift || ch[0] == '\n') {
-			/* Chop the line if we reach the width of the
-			   window. */
-			if (lsp_chop_lines && pctx->x == lsp_maxx - 1) {
-				if (next_ch != '\n')
-					ch[0] = '>';
-
-				setcchar(cchar_ch, ch, pctx->attr, pctx->pair, NULL);
-
-				mvwadd_wch(lsp_win, pctx->y, pctx->x, cchar_ch);
-
-				getyx(lsp_win, pctx->y, pctx->x);
-				goto line_done;
-			}
-
-			if (lsp_mode_is_toc()) {
-				if (lindex == 0) {
-					/* Avoid nirvana cursor on last page. */
-					if (!cf->toc->next)
-						if (cf->toc_cursor > pctx->y)
-							cf->toc_cursor = pctx->y;
-				}
-
-				/* Highlight cursor line if we are not searching. */
-				if (!lsp_mode_is_highlight() && pctx->y == cf->toc_cursor) {
-					pctx->attr = A_REVERSE;
-					pctx->pair = LSP_REVERSE_PAIR;
-				}
-			}
-
-			/* Handle carriage return characters
-			 * Because we replace a single char '\r' by two "^M", we
-			 * need a flag to tell us we are currently doing
-			 * such a translation.
-			 * In the first round, output '^' and set the
-			 * flag and in the second round output 'M' and
-			 * turn off that flag.
-			 */
-			if (!lsp_keep_cr && (ch[0] == '\r' || cr_active)) {
-				if (cr_active) {
-					ch[0] = 'M';
-					cr_active = false;
-				} else {
-					ch[0] = '^';
-					cr_active = true;
-				}
-			}
-
-			/* All the above happened to finaly output a
-			 * single character */
-			setcchar(cchar_ch, ch, pctx->attr, pctx->pair, NULL);
-
-			mvwadd_wch(lsp_win, pctx->y, pctx->x, cchar_ch);
-
-			getyx(lsp_win, pctx->y, pctx->x);
-
-			/* Line is done if ncurses already skipped to the next
-			   line and we only have a linefeed left in this
-			   line. */
-			if (pctx->x == 0) {
-				/* The line could end with an SGR
-				   sequence before the linefeed */
-				size_t l_offset = lindex + ch_len;
-
-				/* Consume SGR sequences if any */
-				l_offset += lsp_skip_sgr(line->raw + l_offset,
-							 line->len - l_offset);
-
-				/* Read correct next_ch if there was an SGR sequence */
-				if (l_offset != lindex + ch_len)
-					lsp_mbtowc(&next_ch, line->raw + l_offset, line->len - l_offset);
-
-				if (next_ch == L'\n')
-					goto line_done;
-			}
-		}
-
-		line_x++;
-
-		/* Reset attributes if we are not in a search match or
-		   an SGR sequence. */
 		if (pctx->attr != A_NORMAL && pctx->cm_index == -1)
 			if (!pctx->sgr_active) {
 				pctx->attr = A_NORMAL;
 				pctx->pair = LSP_DEFAULT_PAIR;
 			}
 
-		/* Stay at position in line, if we are currently
-		   processing the expansion of a TAB character. */
+		/*
+		 * Stay at position in line, if we are currently
+		 * processing the expansion of a TAB character.
+		 */
 		if (tab_spaces) {
 			assert(line->current[0] == '\t');
 
-			/* Advance in line if we are done with
-			   expansion. */
+			/*
+			 * Advance in line if we are done with
+			 * expansion.
+			 */
 			if (--tab_spaces == 0)
 				line->current++;
-		} else if (cr_active == false)
-			/* Don't go ahead when we are currently
-			   translating '\r' to "^M'. */
-			line->current += ch_len;
+		} else if (pctx->cr_active == false)
+			/*
+			 * Don't go ahead when we are currently
+			 * translating '\r' to "^M'.
+			 */
+			line->current += pctx->ch_len;
 	}
 
 line_done:
@@ -4548,10 +4584,14 @@ static void lsp_display_page()
 	struct lsp_pg_ctx pctx = {
 		.x = 0,
 		.y = 0,
+		.ch = { L'\0', L'\0' },
+		.next_ch = L'\0',
+		.line_x = 0,
 		.match_count = 0,
 		.pmatch = NULL,
 		.cm_index = -1,
-		.match_active = 0
+		.match_active = 0,
+		.cr_active = false
 	};
 
 	/* Reload file if necessary, e.g. after a resize. */

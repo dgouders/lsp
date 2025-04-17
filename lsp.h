@@ -111,6 +111,15 @@ struct lsp_pg_ctx {
 	int y;			/* current line */
 	int x;			/* current column */
 
+	int line_x;		/* x-position in current line to skip
+				 * characters shifted out horizontally. */
+	wchar_t ch[2];		/* For conversion to cchar_t we need strings of
+				 * wchar_t terminatet by L'\0'. */
+	size_t ch_len;		/* Width of the wide character (ch) we currently
+				 * process. */
+	wchar_t next_ch;
+	wchar_t next_ch2;	/* Needed to distinguish a bold '_' and italics. */
+
 	attr_t attr;		/* attribute for character output */
 	short pair;		/* color pair for character output */
 	attr_t attr_old;	/* attr saved when highlighting matches */
@@ -124,6 +133,8 @@ struct lsp_pg_ctx {
 	regmatch_t *pmatch;	/* array with all the matches */
 	ssize_t cm_index;	/* index of pmatch array that is the current match */
 	int match_active;	/* flag if currently highlighting a match */
+
+	bool cr_active;		/* flag for ongoing translation '\r' => "^M" */
 };
 
 /*
@@ -343,6 +354,7 @@ static size_t			lsp_normalize_count(const char *, size_t, size_t);
 static void			lsp_open_cterm(void);
 static int			lsp_open_file(const char *);
 static void			lsp_open_manpage(char *);
+static int			lsp_page_display_char(struct lsp_line_t *, struct lsp_pg_ctx *);
 static void			lsp_page_display_line(struct lsp_line_t *, struct lsp_pg_ctx *);
 static void			lsp_page_handle_matches(struct lsp_line_t *, struct lsp_pg_ctx *);
 static void			lsp_page_process_lines(struct lsp_pg_ctx *);
