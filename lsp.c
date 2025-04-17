@@ -5117,14 +5117,16 @@ static void lsp_start_feeder(lsp_feeder_t which_one)
 
 	lsp_file_set_blksize();
 
-	lsp_file_add_block();
-
-	/* Try to find a manpage name heading its content. */
-	if (!lsp_file_is_manpage())
+	/* If cf isn't a manual page, just read an initial block. */
+	if (!lsp_file_is_manpage()) {
+		lsp_file_add_block();
 		return;
+	}
 
 	/* Take care for filename of manpage. */
 	name = lsp_read_manpage_name();
+
+	lsp_file_add_block();
 
 	if (name == NULL)
 		name = lsp_detect_manpage(false);
