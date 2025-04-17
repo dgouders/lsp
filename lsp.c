@@ -4715,6 +4715,9 @@ static void lsp_wline_bw(int n)
 	 */
 	struct lsp_line_t *line = lsp_get_this_line();
 
+	if (!line)
+		return;
+
 	/*
 	 * After lsp_get_this_line() lsp_pos is at the character following that
 	 * line; we want it at the beginning of the just read line.
@@ -6262,6 +6265,10 @@ static void lsp_workhorse()
 					/* We stay on last TOC page. */
 					cf->toc = cf->toc_first;
 			}
+
+			if (cf->page_last == cf->size)
+				lsp_file_set_pos(cf->page_first);
+
 			lsp_display_page(); /* next page */
 			break;
 		case 'g':
