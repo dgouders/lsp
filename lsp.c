@@ -5081,11 +5081,6 @@ static void lsp_start_feeder(lsp_feeder_t which_one)
 	struct winsize winsize;
 	struct termios termios;
 
-	if (which_one == LSP_MAN_COMMAND)
-		e_argv = lsp_create_man_argv(lsp_load_man_command, cf->name);
-	else
-		e_argv = lsp_pinfo->argv;
-
 	ioctl(STDOUT_FILENO, TIOCGWINSZ, &winsize);
 	ioctl(STDOUT_FILENO, TCGETS, &termios);
 
@@ -5105,6 +5100,11 @@ static void lsp_start_feeder(lsp_feeder_t which_one)
 
 	if (cf->child_pid == 0) {		/* child process */
 		lsp_set_pager("lsp_cat");
+
+		if (which_one == LSP_MAN_COMMAND)
+			e_argv = lsp_create_man_argv(lsp_load_man_command, cf->name);
+		else
+			e_argv = lsp_pinfo->argv;
 
 		execvp(e_argv[0], e_argv);
 		lsp_error("%s: execvp() failed.", __func__);
