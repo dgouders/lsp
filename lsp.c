@@ -7231,10 +7231,18 @@ static char *lsp_run_command2str(char *cmd)
 
 static char *lsp_get_parent_cmd_line(pid_t pid)
 {
-	char *ps_cmd = "ps -p %u -o args=";
-	char *cmd = lsp_malloc(strlen(ps_cmd) - 2 + lsp_ndigits(pid) + 1);
-	sprintf(cmd, ps_cmd, pid);
-	return lsp_run_command2str(cmd);
+	char *result;
+	char *cmd_fmt = "ps -p %u -o args=";
+	char *cmd;
+
+	cmd = lsp_malloc((strlen(cmd_fmt) - 2) + lsp_ndigits(pid) + 1);
+
+	sprintf(cmd, cmd_fmt, pid);
+
+	result = lsp_run_command2str(cmd);
+
+	free(cmd);
+	return result;
 }
 
 /*
