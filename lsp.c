@@ -4318,6 +4318,61 @@ static int lsp_page_display_char(struct lsp_line_t *line, struct lsp_pg_ctx *pct
 }
 
 /*
+ * Get the next three wchars in the line (from its current position).
+ * If NULL is given for any of the three character pointers, we don't deliver
+ * them but only those that come with valid pointers.
+ *
+ * If we somewhere reach the end of the line, we set the remaining characters to
+ * '\n'.
+ * (Important is that we must not use a character that could form a backspace
+ *  or SGR sequence, but it seems handy to simply use EOL, in case those
+ *  characters are then blindly used.)
+ *
+ * Return:
+ *	   length of first converted character
+ *	   -1 on error
+ */
+static int lsp_page_next_three_wchars(struct lsp_line_t *line,
+				      wchar_t *ch1, wchar_t *ch2, wchar_t *ch3)
+{
+	size_t ch_len;
+	size_t ret_len;
+
+	if (!line)
+		return -1;
+
+	/* Convert next wide character */
+	ch_len = lsp_mbtowc(ch1, line->current, line->len - lindex);
+
+	ret_len = ch_len;
+
+	if (lindex + ch_len == line->len) {
+		/* Force newline at the end of the line. */
+		if (ch2)
+			*ch2 = L'\n';
+		if (ch3)
+			*ch3 = L'\n';
+		return ret_len;
+	}
+
+	/* Try to convert the following two characters */
+	ch_len += lsp_mbtowc(ch2, line->current + ch_len,
+			     line->len - (lindex + ch_len));
+
+	if (lindex + ch_len == line->len) {
+		/* Force newline at the end of the line. */
+		if (ch3)
+			*ch3 = L'\n';
+		return ret_len;
+	}
+
+	lsp_mbtowc(ch3, line->current + ch_len,
+		   line->len - (lindex + ch_len));
+
+	return ret_len;
+}
+
+/*
  * Display the given line.
  */
 static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pctx)
@@ -4358,20 +4413,9 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 		if (line->current[0] == '\t')
 			tab_spaces = lsp_expand_tab(pctx->line_x);
 
-		/* Convert next wide character */
-		pctx->ch_len = lsp_mbtowc(pctx->ch, line->current, line->len - lindex);
-
-		/* Also get its following two characters */
-		if (lindex + pctx->ch_len == line->len) {
-			/* Force newline at the end of the line. */
-			pctx->next_ch = L'\n';
-		} else {
-			size_t l;
-			l = lsp_mbtowc(&pctx->next_ch, line->current + pctx->ch_len,
-				       line->len - (lindex + pctx->ch_len));
-			lsp_mbtowc(&pctx->next_ch2, line->current + pctx->ch_len + l,
-				   line->len - (lindex + pctx->ch_len + l));
-		}
+		/* Convert next wide characters */
+		pctx->ch_len =
+			lsp_page_next_three_wchars(line, pctx->ch, &pctx->next_ch, &pctx->next_ch2);
 
 		lsp_page_handle_matches(line, pctx);
 
@@ -4396,8 +4440,6 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 			 * _ \b c	=> italics c
 			 * _ \b c \b c	=> bold italics c
 			 */
-			size_t l;
-
 			if (attr_orig == A_NORMAL) {
 				if (pctx->ch[0] == L'_' && pctx->next_ch2 != L'_') {
 					pctx->attr = A_UNDERLINE;
@@ -4414,12 +4456,9 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 			if (line->current[0] == '\t')
 				tab_spaces = lsp_expand_tab(pctx->line_x);
 
-			pctx->ch_len = lsp_mbtowc(pctx->ch, line->current,
-						  line->len - lindex);
-			l = lsp_mbtowc(&pctx->next_ch, line->current + pctx->ch_len,
-				       line->len - (lindex + pctx->ch_len));
-			lsp_mbtowc(&pctx->next_ch2, line->current + pctx->ch_len + l,
-				   line->len - (lindex + pctx->ch_len + l));
+			/* Convert next wide characters */
+			pctx->ch_len =
+				lsp_page_next_three_wchars(line, pctx->ch, &pctx->next_ch, &pctx->next_ch2);
 		}
 
 		while (lsp_is_sgr_sequence(line->current)) {
@@ -4450,14 +4489,14 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 				if (line->current[0] == '\t')
 					tab_spaces = lsp_expand_tab(pctx->line_x);
 
-				/* Convert next wide character */
-				pctx->ch_len = lsp_mbtowc(pctx->ch, line->current,
-							  line->len - lindex);
-				/*
-				 * No fetch of next_ch, because that would only
-				 * be meaningful, if we supported a mixture of
-				 * backspace and SGR sequences. We don't.
+				/* Convert next wide character.
+				 * No fetch of next_ch and next_ch2, because
+				 * that would only be meaningful, if we
+				 * supported a mixture of backspace and SGR
+				 * sequences. We don't.
 				 */
+				pctx->ch_len =
+					lsp_page_next_three_wchars(line, pctx->ch, NULL, NULL);
 			}
 		}
 
