@@ -4318,6 +4318,52 @@ static int lsp_page_display_char(struct lsp_line_t *line, struct lsp_pg_ctx *pct
 }
 
 /*
+ * Handle grotty(1) legacy output format (backspace sequences)
+ * and set attr/pair in pctx, accordingly.
+ *
+ * Try to leave backspace sequences untouched that are not grotty's legacy
+ * output: if we see a backspace in ch then it is definitely no such thing.
+ *
+ * Binary data could give us TAB being part of a backslash sequence -- we don't
+ * touch those.
+ */
+static void lsp_page_bs_seq_to_attr(struct lsp_line_t *line, struct lsp_pg_ctx *pctx)
+{
+	attr_t attr_orig = pctx->attr;
+
+	while (pctx->ch[0] != '\t' && (pctx->ch[0] != L'\b' && pctx->next_ch == L'\b')) {
+		/*
+		 * According to grotty(1) there are three
+		 * possible backspace sequences:
+		 *
+		 * c \b c	=> bold c
+		 * _ \b c	=> italics c
+		 * _ \b c \b c	=> bold italics c
+		 */
+		if (attr_orig == A_NORMAL) {
+			if (pctx->ch[0] == L'_' && pctx->next_ch2 != L'_') {
+				pctx->attr = A_UNDERLINE;
+				pctx->pair = LSP_UL_PAIR;
+			} else if (pctx->ch[0] == pctx->next_ch2) {
+				pctx->attr |= A_BOLD;
+				pctx->pair = LSP_BOLD_PAIR;
+			}
+		}
+
+		line->current += pctx->ch_len + 1;
+
+		/* Convert tabs to spaces. */
+		if (line->current[0] == '\t')
+			pctx->tab_spaces = lsp_expand_tab(pctx->line_x);
+
+		/* Convert next wide characters */
+		pctx->ch_len =
+			lsp_page_next_three_wchars(line, pctx->ch, &pctx->next_ch, &pctx->next_ch2);
+	}
+
+}
+
+/*
  * Get the next three wchars in the line (from its current position).
  * If NULL is given for any of the three character pointers, we don't deliver
  * them but only those that come with valid pointers.
@@ -4378,12 +4424,10 @@ static int lsp_page_next_three_wchars(struct lsp_line_t *line,
 static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pctx)
 {
 	/* The next chars in the line -- not yet known. */
-	pctx->ch[0]   = L'\0';
-	pctx->ch[1]   = L'\0';
-	pctx->next_ch = L'\0';
-
-	/* Amount of spaces needed to expand a current TAB in the line. */
-	int tab_spaces = 0;
+	pctx->ch[0]      = L'\0';
+	pctx->ch[1]      = L'\0';
+	pctx->next_ch    = L'\0';
+	pctx->tab_spaces = 0;
 
 	int ret;
 
@@ -4411,7 +4455,7 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 
 		/* Convert tabs to spaces. */
 		if (line->current[0] == '\t')
-			tab_spaces = lsp_expand_tab(pctx->line_x);
+			pctx->tab_spaces = lsp_expand_tab(pctx->line_x);
 
 		/* Convert next wide characters */
 		pctx->ch_len =
@@ -4419,47 +4463,7 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 
 		lsp_page_handle_matches(line, pctx);
 
-		/*
-		 * Handle control characters to emphasize parts of the
-		 * text.
-		 *
-		 * Try to leave backspace sequences untouched that are
-		 * not grotty's legacy output: if see a backspace
-		 * in ch then it is definitely no such thing.
-		 *
-		 * Binary data could give us TAB being part of a
-		 * backslash sequence -- we don't touch those.
-		 */
-		attr_t attr_orig = pctx->attr;
-		while (pctx->ch[0] != '\t' && (pctx->ch[0] != L'\b' && pctx->next_ch == L'\b')) {
-			/*
-			 * According to grotty(1) there are three
-			 * possible backspace sequences:
-			 *
-			 * c \b c	=> bold c
-			 * _ \b c	=> italics c
-			 * _ \b c \b c	=> bold italics c
-			 */
-			if (attr_orig == A_NORMAL) {
-				if (pctx->ch[0] == L'_' && pctx->next_ch2 != L'_') {
-					pctx->attr = A_UNDERLINE;
-					pctx->pair = LSP_UL_PAIR;
-				} else if (pctx->ch[0] == pctx->next_ch2) {
-					pctx->attr |= A_BOLD;
-					pctx->pair = LSP_BOLD_PAIR;
-				}
-			}
-
-			line->current += pctx->ch_len + 1;
-
-			/* Convert tabs to spaces. */
-			if (line->current[0] == '\t')
-				tab_spaces = lsp_expand_tab(pctx->line_x);
-
-			/* Convert next wide characters */
-			pctx->ch_len =
-				lsp_page_next_three_wchars(line, pctx->ch, &pctx->next_ch, &pctx->next_ch2);
-		}
+		lsp_page_bs_seq_to_attr(line, pctx);
 
 		while (lsp_is_sgr_sequence(line->current)) {
 			size_t l;
@@ -4487,7 +4491,7 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 
 				/* Convert tabs to spaces. */
 				if (line->current[0] == '\t')
-					tab_spaces = lsp_expand_tab(pctx->line_x);
+					pctx->tab_spaces = lsp_expand_tab(pctx->line_x);
 
 				/* Convert next wide character.
 				 * No fetch of next_ch and next_ch2, because
@@ -4508,7 +4512,7 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 		}
 
 		/* Expand TAB with spaces */
-		if (pctx->ch[0] == '\t' && tab_spaces)
+		if (pctx->ch[0] == '\t' && pctx->tab_spaces)
 			pctx->ch[0] = ' ';
 
 		/* Output the current character. */
@@ -4533,14 +4537,14 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 		 * Stay at position in line, if we are currently
 		 * processing the expansion of a TAB character.
 		 */
-		if (tab_spaces) {
+		if (pctx->tab_spaces) {
 			assert(line->current[0] == '\t');
 
 			/*
 			 * Advance in line if we are done with
 			 * expansion.
 			 */
-			if (--tab_spaces == 0)
+			if (--pctx->tab_spaces == 0)
 				line->current++;
 		} else if (pctx->cr_active == false)
 			/*

@@ -135,6 +135,9 @@ struct lsp_pg_ctx {
 	int match_active;	/* flag if currently highlighting a match */
 
 	bool cr_active;		/* flag for ongoing translation '\r' => "^M" */
+
+	int tab_spaces;		/* Amount of spaces needed to expand a current
+				 * TAB in a line. */
 };
 
 /*
@@ -354,6 +357,7 @@ static size_t			lsp_normalize_count(const char *, size_t, size_t);
 static void			lsp_open_cterm(void);
 static int			lsp_open_file(const char *);
 static void			lsp_open_manpage(char *);
+static void			lsp_page_bs_seq_to_attr(struct lsp_line_t *, struct lsp_pg_ctx *);
 static int			lsp_page_display_char(struct lsp_line_t *, struct lsp_pg_ctx *);
 static void			lsp_page_display_line(struct lsp_line_t *, struct lsp_pg_ctx *);
 static void			lsp_page_handle_matches(struct lsp_line_t *, struct lsp_pg_ctx *);
