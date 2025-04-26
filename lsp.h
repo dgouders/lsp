@@ -364,6 +364,7 @@ static void			lsp_page_handle_matches(struct lsp_line_t *, struct lsp_pg_ctx *);
 static int			lsp_page_next_three_wchars(struct lsp_line_t *,
 							   wchar_t *, wchar_t *, wchar_t *);
 static void			lsp_page_process_lines(struct lsp_pg_ctx *);
+static int			lsp_page_sgr_to_attr(struct lsp_line_t *, struct lsp_pg_ctx *);
 static bool			lsp_parent_is_restartable(const char *);
 static void			lsp_pinfo_dtor(void);
 static void			lsp_pinfo_ctor(void);

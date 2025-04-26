@@ -4169,21 +4169,26 @@ static void lsp_page_handle_matches(struct lsp_line_t *line, struct lsp_pg_ctx *
 		    pctx->pmatch[i].rm_eo >= lindex) {
 
 			if (pctx->pmatch[i].rm_so == lindex) {
+				/*
+				 * Start of match, save current attr and pair
+				 * for later restoration.
+				 */
 				pctx->attr_old = pctx->attr;
 				pctx->pair_old = pctx->pair;
 				pctx->match_active = 1;
 			}
 
 			if (lsp_mode_is_refs()) {
+				/* Highlight reference. */
 				pctx->attr = A_UNDERLINE;
 				pctx->pair = LSP_UL_PAIR;
 			} else {
+				/* Highlight search match. */
 				pctx->attr = A_STANDOUT;
 				pctx->pair = LSP_REVERSE_PAIR;
 			}
 
-			/* Notice if we are working on
-			   the current match. */
+			/* Notice if we are working on the current match. */
 			if (line->pos + lindex == cf->current_match.rm_so)
 				pctx->cm_index = i;
 		}
@@ -4196,8 +4201,10 @@ static void lsp_page_handle_matches(struct lsp_line_t *line, struct lsp_pg_ctx *
 
 		}
 
-		/* Notice if it was the current match, remember its
-		   coords for positioning the cursor, later. */
+		/*
+		 * Notice if it was the current match, remember its coords
+		 * for positioning the cursor, later.
+		 */
 		if (pctx->cm_index == i && pctx->pmatch[i].rm_eo <= lindex) {
 			cf->cmatch_y = pctx->y;
 			cf->cmatch_x = pctx->x;
@@ -4232,9 +4239,8 @@ static int lsp_page_display_char(struct lsp_line_t *line, struct lsp_pg_ctx *pct
 	if (pctx->line_x < lsp_shift && pctx->ch[0] != '\n')
 		return 0;
 
-	/*
-	 * Chop the line when we reach the width of the window.
-	 */
+
+	/* Chop the line when we reach the width of the window. */
 	if (lsp_chop_lines && pctx->x == lsp_maxx - 1) {
 		if (pctx->next_ch != '\n')
 			pctx->ch[0] = '>';
@@ -4313,6 +4319,57 @@ static int lsp_page_display_char(struct lsp_line_t *line, struct lsp_pg_ctx *pct
 
 	if (pctx->next_ch == L'\n')
 		return 1;
+
+	return 0;
+}
+
+/*
+ * Process possible SGR sequence(s) at the current position in the given line
+ * and decode it/them to attribute / color pair.
+ *
+ * Return 1 if the line ended with a processed SGR sequence or
+ *        0 in all other cases.
+ *
+ */
+static int lsp_page_sgr_to_attr(struct lsp_line_t *line, struct lsp_pg_ctx *pctx)
+{
+	size_t l;		/* return value of lsp_decode_sgr() */
+
+	while (lsp_is_sgr_sequence(line->current)) {
+		/*
+		 * We could be inside a search match and in this case we need to
+		 * set attribute/color for the part after the match.
+		 */
+		if (pctx->match_active)
+			l = lsp_decode_sgr(line->current, &pctx->attr_old, &pctx->pair_old);
+		else
+			l = lsp_decode_sgr(line->current, &pctx->attr, &pctx->pair);
+
+		/* Process valid SGR sequences, only. */
+		if (l == (size_t)-1)
+			return 0;
+
+		if (l > 1)
+			pctx->sgr_active = 1;
+
+		line->current += l;
+
+		if (lindex >= line->len)
+			return 1;		/* Line ended with SGR sequence. */
+
+		/* Convert tabs to spaces. */
+		if (line->current[0] == '\t')
+			pctx->tab_spaces = lsp_expand_tab(pctx->line_x);
+
+		/*
+		 * Convert next wide character.
+		 * No fetch of next_ch and next_ch2, because that would only be
+		 * meaningful, if we supported a mixture of backspace and SGR
+		 * sequences.  We don't.
+		 */
+		pctx->ch_len =
+			lsp_page_next_three_wchars(line, pctx->ch, NULL, NULL);
+	}
 
 	return 0;
 }
@@ -4465,44 +4522,10 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 
 		lsp_page_bs_seq_to_attr(line, pctx);
 
-		while (lsp_is_sgr_sequence(line->current)) {
-			size_t l;
-			/* Get attributes according to SGR
-			 * sequence.  We could be inside a
-			 * search match and in this case we
-			 * need to set attribute/color for the
-			 * part after the match. */
-			if (pctx->match_active)
-				l = lsp_decode_sgr(line->current, &pctx->attr_old,
-						   &pctx->pair_old);
-			else
-				l = lsp_decode_sgr(line->current, &pctx->attr,
-						   &pctx->pair);
+		ret = lsp_page_sgr_to_attr(line, pctx);
 
-			/* Only use correct SGR sequences. */
-			if (l == (size_t)-1)
-				break;
-			else {
-				if (l > 1)
-					pctx->sgr_active = 1;
-				line->current += l;
-				if (lindex >= line->len)
-					goto line_done;
-
-				/* Convert tabs to spaces. */
-				if (line->current[0] == '\t')
-					pctx->tab_spaces = lsp_expand_tab(pctx->line_x);
-
-				/* Convert next wide character.
-				 * No fetch of next_ch and next_ch2, because
-				 * that would only be meaningful, if we
-				 * supported a mixture of backspace and SGR
-				 * sequences. We don't.
-				 */
-				pctx->ch_len =
-					lsp_page_next_three_wchars(line, pctx->ch, NULL, NULL);
-			}
-		}
+		if (ret)
+			goto line_done;
 
 		/* Record position of last TOC entry or first byte not part of this page. */
 		if (lsp_mode_is_toc()) {
@@ -4571,17 +4594,17 @@ static void lsp_page_process_lines(struct lsp_pg_ctx *pctx)
 	/* TOC top line; currently unset. */
 	pctx->top_line = (off_t)-1;
 
-	/*
-	 * Process lines until EOF or the window is filled.
-	 */
+	/* Process lines until EOF or the window is filled. */
 	while (pctx->y < (lsp_maxy - 1)) {
 		pctx->attr = A_NORMAL;
 		pctx->pair = LSP_DEFAULT_PAIR;
 		pctx->sgr_active = 0;
 
-		/* If we have long lines that consume multiple lines on the page
-		   we need to process SGR sequences that might be in the
-		   previous part of the line. */
+		/*
+		 * If we have long lines that consume multiple lines on the page
+		 * we need to process SGR sequences that might be in the
+		 * previous part of the line.
+		 */
 		if (!lsp_file_is_at_bol())
 			if (lsp_line_handle_leading_sgr(&pctx->attr, &pctx->pair))
 				pctx->sgr_active = 1;
