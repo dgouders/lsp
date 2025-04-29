@@ -19,7 +19,37 @@
  */
 
 /*
+ * Some perhaps non-obvious abbreviations used in the code
+ * -------------------------------------------------------
+ *              cr = carriage return
+ *           cterm = controlling terminal
+ *             bol = beginning of line
+ *          bs/bsp = backspace (should really be either only bs or bsp)
+ *              cf = current file
+ *              cm = current match
+ *            gref = global reference (see below)
+ *            hwin = hidden window
+ *             ref = reference (to other manual page)
+ *             rep = replacement
+ *           wline = window line (in contrast to a "physical line", see below)
+ *
  * Some definitions / explanation
+ * ------------------------------
+ *
+ * Feeder
+ * ------
+ * A terminal pager most of the time works on data that parent processes
+ * generate and those processes start lsp to show that data in pages.
+ * When *we* start such processes, those are usually child processes but that is
+ * rather irrelevant when it comes to naming for our coding.
+ * So, we started to think about processes that send us data as "feeders",
+ * because they feed us work and we don't care (most of the time) if they are
+ * parents or childs.
+ *
+ * Also, "feeder" is shorter than "parent_process" or "child_process".
+ *
+ * There might still be inconsistencies but currently that seems to be a useful
+ * naming pattern that we follow until we notice it is bad.
  *
  * Files
  * -----
@@ -60,14 +90,28 @@
  *   The above means: line 1 (index 0 in the array) always starts at
  *   position 0 in the file.  A constant value, yes.
  *
+ * Window Lines
+ * ------------
+ *   There was a need to distinguish between (physical) lines made of arbitrary
+ *   content, terminated by a linefeed '\n' and window lines -- content shown in
+ *   one line of the window and thus limited by the width of the window.
+ *
+ *   In the extreme, a file could consist of just one extremely long physical
+ *   line which is paged by dividing that content into "window lines" shown in
+ *   the window (if line chopping is inactive).
+ *
+ *   In lack of better knowledge/talent in writing, the terms "physical line"
+ *   and "window line" are used, the latter is abbreviated as "wline" when used
+ *   in code.
+ *
  * gref
  * ----
- * This is short for _global reference_: manual pages usually refer to others
- * and (if not toggled) we spend the effort to check if such references are
- * valid before offering them as links.  Because the reference "lsp(1)", once
- * validated from within file a would also be valid from within file b we
- * globally keep record of such validated references, i.e. they are meaningful
- * to any file.
+ *   This is short for _global reference_: manual pages usually refer to others
+ *   and (if not toggled) we spend the effort to check if such references are
+ *   valid before offering them as links.  Because the reference "lsp(1)", once
+ *   validated from within file a would also be valid from within file b we
+ *   globally keep record of such validated references, i.e. they are meaningful
+ *   to any file.
  */
 
 #define _GNU_SOURCE
@@ -140,9 +184,8 @@ static void *lsp_malloc(size_t size)
 {
 	void *ptr = malloc(size);
 
-	if (ptr == NULL) {
+	if (ptr == NULL)
 		lsp_error("%s: %s", __func__, strerror(errno));
-	}
 
 	return ptr;
 }
@@ -151,9 +194,8 @@ static void *lsp_calloc(size_t nmemb, size_t size)
 {
 	void *ptr = calloc(nmemb, size);
 
-	if (ptr == NULL) {
+	if (ptr == NULL)
 		lsp_error("%s: %s", __func__, strerror(errno));
-	}
 
 	return ptr;
 }
@@ -162,9 +204,8 @@ static void *lsp_realloc(void *ptr, size_t size)
 {
 	void *ret_ptr = realloc(ptr, size);
 
-	if (ret_ptr == NULL) {
+	if (ret_ptr == NULL)
 		lsp_error("%s: %s", __func__, strerror(errno));
-	}
 
 	return ret_ptr;
 }
@@ -173,8 +214,8 @@ static void *lsp_realloc(void *ptr, size_t size)
  * Try to detect if file_t is a manual page.
  * Return a string xyz(n) if so, NULL otherwise.
  *
- * We start by checking if we find an environment variable MAN_PN that gives us
- * the name of the manual page.
+ * We start by checking if we find an environment variable
+ * MAN_PN that gives us the name of the manual page.
  *
  * If that fails, we are falling back to our prior behavior:
  *
@@ -249,7 +290,7 @@ static char *lsp_detect_manpage(bool use_env)
 
 /*
  * lsp_file_getch() expects the data-buffer ring aligned to the buffer
- * containing the _last byte it served_ -- or the first one.
+ * containing the _last byte it served_ -- or the first one of the file.
  *
  * So, after a series of functions happily altered cf->getch_pos we
  * should finally be called to clean up the mess that all caused.
@@ -306,8 +347,8 @@ static void lsp_goto_bol()
 }
 
 /*
- * Return length needed to skip control sequences (SGR or backspace) to reach
- * the next payload character.
+ * Return length needed to skip control sequences (SGR or backspace)
+ * to reach the next payload character.
  */
 static size_t lsp_skip_to_payload(const char *str, size_t len)
 {
@@ -320,8 +361,8 @@ static size_t lsp_skip_to_payload(const char *str, size_t len)
 }
 
 /*
- * Return length needed to skip leading backspace sequences in given data at ptr
- * of given length len.
+ * Return length needed to skip leading backspace sequences
+ * in the data at ptr of given length len.
  */
 static size_t lsp_skip_bsp(const char *ptr, size_t len)
 {
@@ -329,7 +370,7 @@ static size_t lsp_skip_bsp(const char *ptr, size_t len)
 	size_t ch_len;
 
 	while (1) {
-		if (ptr[i] == '\b') {
+		if (ptr[i] == '\b')
 			/*
 			 * The next char is a \b, i.e. this is not a
 			 * backspace sequence we are interested in.
@@ -337,13 +378,13 @@ static size_t lsp_skip_bsp(const char *ptr, size_t len)
 			 * uninteresting.
 			 */
 			return 0;
-		}
 
-		if (ptr[i] == '\t') {
-			/* Binary data might contain tabs mixed with backspaces.
-			   Leave them alone. */
+		if (ptr[i] == '\t')
+			/*
+			 * Binary data might contain tabs mixed with backspaces.
+			 * Leave them alone.
+			 */
 			return 0;
-		}
 
 		/* Get length of possible multibyte char. */
 		ch_len = lsp_mblen(ptr + i, len - i);
@@ -363,8 +404,8 @@ static size_t lsp_skip_bsp(const char *ptr, size_t len)
 }
 
 /*
- * Return length needed to skip leading SGR sequence(s) in given data at ptr of
- * length len.
+ * Return length needed to skip leading SGR sequence(s) in
+ * given data at ptr of length len.
  */
 static size_t lsp_skip_sgr(const char *ptr, size_t len)
 {
@@ -403,11 +444,11 @@ static size_t lsp_get_sgr_len(const char *seq)
  *
  * We expect a string without the leading CSI, e.g. "n1;n2;n3...m"
  *
- * Store the values in the given array enns of size size and return the number
- * of extracted values.
+ * Store the values in the given array enns of size size and return
+ * the number of extracted values.
  *
- * Return -1 if we find illegal content; the status of enns should then be
- * considered undefined.
+ * Return -1 if we find illegal content; the status of enns should
+ * then be considered undefined.
  */
 static int lsp_sgr_extract_enns(const char *seq, long *enns, size_t size)
 {
@@ -470,7 +511,8 @@ static size_t lsp_decode_sgr(const char *seq, attr_t *attr, short *pair)
 	enn_count = lsp_sgr_extract_enns(seq + 2, enns, 32);
 
 	if (enn_count == -1) {
-		lsp_debug("%s: could not extract enns from SGR: \"%.*s\"", sgr_len, seq);
+		lsp_debug("%s: could not extract enns from SGR: \"%.*s\"",
+			  sgr_len, seq);
 		return (size_t)-1;
 	}
 
@@ -753,13 +795,13 @@ static bool lsp_file_is_at_bol()
 
 /*
  * Shift the level of all TOC entries by the specified number.
- * This function is needed to ensure we have level 0 TOC entries even if for the
- * current file entries with that level weren't generated.
+ * This function is needed to ensure we have level 0 TOC entries even
+ * if for the current file entries with that level weren't generated.
  */
 static void lsp_toc_shift(int n)
 {
-	/* TOC levels are not yet reliable, so rewinds with
-	   positions != 0 could fail. */
+	/* At this moment, TOC levels are not yet reliable,
+	   so rewinds with positions != 0 could fail. */
 	struct toc_node_t *toc_save = cf->toc;
 
 	lsp_toc_rewind(0);
@@ -837,8 +879,8 @@ static void lsp_toc_ctor()
 		}
 
 		/* Level 2: all lines starting with seven spaces and
-		   their following line with indentation of
-		   at least eleven spaces. */
+		            their following line with indentation of
+			    at least eleven spaces. */
 		if (line->nlen > 11 &&
 		    LSP_STRN_EQ(line->normalized, "       ", 7) &&
 		    line->normalized[7] != ' ') {
@@ -876,8 +918,8 @@ static void lsp_toc_ctor()
  * point cf->toc to the last added entry so that we just need to add
  * the new one at that position.
  *
- * Later, the TOC needs a rewind to start displaying it from top to
- * bottom.
+ * After creation, the TOC needs a rewind to start displaying it from
+ * top to bottom.
  */
 static void lsp_file_toc_add(const struct lsp_line_t *line, int level)
 {
@@ -1229,9 +1271,8 @@ static int lsp_toc_move_to_next()
 			/* Restore old TOC entry and return failure. */
 			cf->toc = old_toc;
 			return -1;
-		} else {
+		} else
 			cf->toc = cf->toc->next;
-		}
 
 	return 0;
 }
@@ -1893,8 +1934,8 @@ static ssize_t lsp_file_read_block(size_t size_to_read)
 }
 
 /*
- * For the current file: add the offset of the beginning of a line to the
- * array of offsets of lines.
+ * For the current file: add the offset of the beginning of a line
+ * to the array of offsets of lines.
  * Offsets must come in in increasing order!
  *
  * fixme: this means, we don't support holes among the buffers...
@@ -2351,9 +2392,8 @@ static int lsp_open_file(const char *name)
 		 */
 		FILE *fp = popen(cmd, "r");
 
-		if (fp == NULL) {
+		if (fp == NULL)
 			lsp_error("%s: could not popen(\"%s\").", __func__, lsp_env_open);
-		}
 
 		size_t nread = 0;
 
@@ -2465,7 +2505,7 @@ static void lsp_mark_regular_file()
 }
 
 /*
- * Prepare current cf for regular use.
+ * Prepare current file for regular use.
  */
 static void lsp_file_init()
 {
@@ -2707,9 +2747,9 @@ static regmatch_t lsp_line_get_last_match(struct lsp_line_t **line)
 			match.rm_eo = (*line)->pos +
 				lsp_normalize_count((*line)->raw, (*line)->len, match.rm_eo);
 
-			if (lsp_mode_is_search()) {
+			if (lsp_mode_is_search())
 				valid_match = match;
-			} else {
+			else {
 				/* LSP_REFS_MODE:
 				   we need to validate the match. */
 				bool valid = lsp_validate_ref_at_pos(match);
@@ -2871,7 +2911,8 @@ static int lsp_gref_henter(struct gref_t *gref_p)
 
 /*
  * BSD hdestroy() calls free() for each key.
- * So, create a duplicate key for those systems to ensure our later cleanup works correctly.
+ * So, create a duplicate key for those systems to ensure our
+ * later cleanup works correctly.
  */
 #if defined __APPLE__ && defined __MACH__
 	e.key = strdup(gref_p->name);
@@ -2883,7 +2924,8 @@ static int lsp_gref_henter(struct gref_t *gref_p)
 	ep = hsearch(e, ENTER);
 
 	if (ep == NULL)
-		lsp_error("Enter \"%s\" into hash table: %s", gref_p->name, strerror(errno));
+		lsp_error("Enter \"%s\" into hash table: %s",
+			  gref_p->name, strerror(errno));
 
 	return 0;
 }
@@ -3272,11 +3314,11 @@ static char *lsp_search_compile_regex(lsp_mode_t search_mode)
 		/* In any case: return success. */
 		return NULL;
 	} else {
-		if (lsp_search_regex) {
+		if (lsp_search_regex)
 			regfree(lsp_search_regex);
-		} else {
+		else
 			lsp_search_regex = lsp_calloc(1, sizeof(regex_t));
-		}
+
 		int cflags = REG_EXTENDED | REG_NEWLINE;
 		if (!lsp_case_sensitivity)
 			cflags |= REG_ICASE;
@@ -3628,9 +3670,8 @@ static void lsp_cmd_search_fw(lsp_mode_t search_mode)
 		if (lsp_mode_is_toc()) {
 			cf->toc = cf->toc_first;
 			lsp_file_set_pos(cf->toc->pos);
-		} else {
+		} else
 			lsp_file_set_pos(cf->page_first);
-		}
 
 	regmatch_t pos;
 
@@ -3642,11 +3683,11 @@ static void lsp_cmd_search_fw(lsp_mode_t search_mode)
 
 		if (lsp_is_no_match(pos)) {
 			lsp_prompt = lsp_not_found;
-			if (lsp_mode_is_toc()) {
+			if (lsp_mode_is_toc())
 				cf->toc = cf->toc_first;
-			} else {
+			else
 				lsp_file_set_pos(cf->page_first);
-			}
+
 			return;
 		}
 
@@ -3692,10 +3733,9 @@ static struct gref_t *lsp_get_gref_at_pos(regmatch_t pos)
 {
 	struct lsp_line_t *line = lsp_get_line_at_pos(pos.rm_so);
 
-	if (!line) {
+	if (!line)
 		lsp_error("%s: could not get a line at pos %ld",
 			  __func__, pos.rm_so);
-	}
 
 	char *ref_start = line->raw + (pos.rm_so - line->pos);
 
@@ -3791,9 +3831,9 @@ static void lsp_search_align_toc_to_match()
 	if (match_line == bottom_line && cf->toc_last) {
 		cf->toc = cf->toc_first;
 		lsp_toc_fw(lsp_maxy / 2);
-	} else if (lsp_pos_is_current_page(cf->current_match.rm_so) == TRUE) {
+	} else if (lsp_pos_is_current_page(cf->current_match.rm_so) == TRUE)
 		cf->toc = cf->toc_first;
-	} else {
+	else {
 		cf->toc = lsp_pos_to_toc(cf->current_match.rm_so);
 		lsp_toc_bw(lsp_maxy / 2);
 	}
@@ -4041,15 +4081,15 @@ static size_t lsp_mbtowc(wchar_t *wc_p, const char *mb_p, size_t n)
 		/* No wchar given: just return a length. */
 		return 1;
 
-	if (ch_len == 0) {
+	if (ch_len == 0)
 		/* L'\0' found.
 		   We take it as is but return 1 for its length. */
 		wc_p[0] = mb_p[0];
-	} else if (ch_len == (size_t)-1) {
+	else if (ch_len == (size_t)-1)
 		/* Invalid multibyte sequnce.
 		   Take char as is. */
 		wc_p[0] = mb_p[0];
-	} else if (ch_len == (size_t)-2) {
+	else if (ch_len == (size_t)-2)
 		/* Not sure how to react here.
 		   The line ends with '\n' which means
 		   that it sits in the middle of an mb
@@ -4057,7 +4097,6 @@ static size_t lsp_mbtowc(wchar_t *wc_p, const char *mb_p, size_t n)
 
 		   So, for now: take char as is. */
 		wc_p[0] = mb_p[0];
-	}
 
 	return 1;
 }
@@ -4079,20 +4118,19 @@ static struct lsp_line_t *lsp_get_next_display_line()
 		while (cf->toc->next && cf->toc->level > cf->current_toc_level)
 			cf->toc = cf->toc->next;
 
-		if (cf->toc->level > cf->current_toc_level) {
+		if (cf->toc->level > cf->current_toc_level)
 			/* No more TOC entries in this level. */
 			line = NULL;
-		} else {
+		else {
 			line = lsp_get_line_at_pos(cf->toc->pos);
 
 			if (!line)
 				lsp_error("%s: could not get line at pos %ld",
 					  __func__, cf->toc->pos);
 		}
-	} else {
+	} else
 		/* No TOC mode; just return next line in file. */
 		line = lsp_get_line_from_here();
-	}
 
 	return line;
 }
@@ -4528,11 +4566,10 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 			goto line_done;
 
 		/* Record position of last TOC entry or first byte not part of this page. */
-		if (lsp_mode_is_toc()) {
+		if (lsp_mode_is_toc())
 			cf->toc_last = cf->toc->next;
-		} else {
+		else
 			cf->page_last = line->pos + lindex + 1;
-		}
 
 		/* Expand TAB with spaces */
 		if (pctx->ch[0] == '\t' && pctx->tab_spaces)
@@ -4721,14 +4758,14 @@ static void lsp_wline_fw(int n)
 		/* Divide physical line into window lines. */
 		lsp_line_add_wlines(line);
 
-		if (n >= line->n_wlines) {
+		if (n >= line->n_wlines)
 			/* Could be that we are done but we don't need to set
 			 * the position, because in that case the complete line
 			 * fullfills n and reading the line already moved the
 			 * position past the current line.
 			 */
 			n -= line->n_wlines;
-		} else {
+		else {
 			/* We are done, this line fullfills n */
 			lsp_file_set_pos(line->wlines[n] + line->pos);
 			n = 0;
@@ -4818,7 +4855,6 @@ static void lsp_cmd_forward(int n)
 	} else
 		/* read forward n window lines */
 		lsp_wline_fw(n);
-
 }
 
 /*
@@ -5212,8 +5248,8 @@ static void lsp_set_pager(const char *pager)
 /*
  * Start a process that feeds us work.
  *
- * @which_one: specify whether we need to start a man(1) process or the original
- *             feeder (our parent).
+ * which_one: specify whether we need to start a man(1) process or the original
+ *            feeder (our parent).
  */
 static void lsp_start_feeder(lsp_feeder_t which_one)
 {
@@ -5252,9 +5288,8 @@ static void lsp_start_feeder(lsp_feeder_t which_one)
 		lsp_error("%s: execvp() failed.", __func__);
 	}
 
-	cf->fd = ptmxfd;
-
 	/* parent process */
+	cf->fd = ptmxfd;
 	cf->size = LSP_FSIZE_UNKNOWN;
 
 	lsp_file_set_blksize();
@@ -5448,10 +5483,9 @@ static char *lsp_man_get_section(off_t pos)
 		if (line->raw[0] == '\n') {
 			count_empty_lines = true;
 			lsp_reposition.elines++;
-		} else {
+		} else
 			if (!count_empty_lines)
 				lsp_reposition.words += lsp_line_count_words(line);
-		}
 	}
 
 	/*
@@ -5542,11 +5576,8 @@ static void lsp_file_forward_words(size_t nwords)
 	struct lsp_line_t *line;
 	size_t wcnt;
 
-	if (!nwords) {
-		//lsp_file_set_prev_line();
-		//lsp_goto_bol();
+	if (!nwords)
 		return;
-	}
 
 	while (1) {
 		line = lsp_get_this_line();
@@ -5891,9 +5922,8 @@ static void lsp_cmd_apropos()
 
 	FILE *fp = popen(lsp_apropos_command, "r");
 
-	if (fp == NULL) {
+	if (fp == NULL)
 		lsp_error("%s: could not popen(\"%s\").", __func__, lsp_apropos_command);
-	}
 
 	/* Remember that we need to pclose(3) this pipe. */
 	cf->flags |= LSP_FLAG_POPEN;
@@ -6012,17 +6042,6 @@ static void lsp_cmd_mouse()
 		goto out;
 	}
 
-/*
-	char x = 1;
-	if (BUTTON_RELEASE(event.bstate, x))
-		lsp_debug("%s: button release", __func__);
-	if (BUTTON_CLICK(event.bstate, x))
-		lsp_debug("%s: button click", __func__);
-	if (BUTTON_DOUBLE_CLICK(event.bstate, x))
-		lsp_debug("%s: button double click", __func__);
-	if (BUTTON_TRIPLE_CLICK(event.bstate, x))
-		lsp_debug("%s: button triple click", __func__);
-*/
 	/* Button 1 click -> place cursor at this position */
 	if (BUTTON_CLICK(event.bstate, 1)) {
 		if (lsp_mode_is_toc()) {
@@ -6084,8 +6103,6 @@ static void lsp_create_status_line()
 
 	wmove(lsp_win, lsp_maxy - 1, 0);
 
-	//wrefresh(lsp_win);
-
 	wattr_set(lsp_win, A_STANDOUT, LSP_REVERSE_PAIR, NULL);
 
 	if (lsp_file_is_manpage())
@@ -6093,8 +6110,10 @@ static void lsp_create_status_line()
 
 	x = getcurx(lsp_win);
 
-	/* Display filename.
-	   stdin has no name and we want to display something reasonable. */
+	/*
+	 * Display filename.
+	 * stdin has no name and we want to display something reasonable.
+	 */
 	if (cf->name[0] == '\0')
 		if (cf->neat_name)
 			mvwaddstr(lsp_win, lsp_maxy - 1, x, cf->neat_name);
@@ -6151,9 +6170,8 @@ static void lsp_cursor_care()
 		if (lsp_cursor_set) {
 			wmove(lsp_win, lsp_cursor_y, lsp_cursor_x);
 			curs_set(2);
-		} else {
+		} else
 			curs_set(0);
-		}
 	}
 }
 
@@ -6179,17 +6197,16 @@ static void lsp_cmd_toggle_options()
 	case 'i':
 		lsp_case_sensitivity = !lsp_case_sensitivity;
 
-		if (lsp_case_sensitivity) {
+		if (lsp_case_sensitivity)
 			lsp_prompt = "Case sensitivity ON";
-		} else {
+		else
 			lsp_prompt = "Case sensitivity OFF";
-		}
 
 		/* If we are in a search the regular expression must be
 		   re-compiled. */
-		if (lsp_search_regex) {
+		if (lsp_search_regex)
 			lsp_search_compile_regex(LSP_SEARCH_MODE);
-		}
+
 		break;
 	case 'c':
 		lsp_chop_lines = !lsp_chop_lines;
@@ -6220,11 +6237,11 @@ static void lsp_cmd_toggle_options()
 	case 'V':
 		lsp_verify = !lsp_verify;
 
-		if (lsp_verify) {
+		if (lsp_verify)
 			lsp_prompt = "Verification of references turned ON.";
-		} else {
+		else
 			lsp_prompt = "Verification of references turned OFF.";
-		}
+
 		break;
 	} /* switch() */
 }
@@ -6524,12 +6541,10 @@ static void lsp_workhorse()
 				cf->regex_p = lsp_search_regex;
 
 				lsp_cmd_search_fw(LSP_SEARCH_MODE);
-			} else {
-				if (lsp_mode_is_toc())
-					cf->toc = cf->toc_first;
-				else
-					lsp_file_set_pos(cf->page_first);
-			}
+			} else if (lsp_mode_is_toc())
+				cf->toc = cf->toc_first;
+			else
+				lsp_file_set_pos(cf->page_first);
 
 			lsp_display_page();
 			break;
@@ -6543,12 +6558,10 @@ static void lsp_workhorse()
 				cf->regex_p = lsp_search_regex;
 
 				lsp_cmd_search_bw(LSP_SEARCH_MODE);
-			} else {
-				if (lsp_mode_is_toc())
-					cf->toc = cf->toc_first;
-				else
-					lsp_file_set_pos(cf->page_first);
-			}
+			} else if (lsp_mode_is_toc())
+				cf->toc = cf->toc_first;
+			else
+				lsp_file_set_pos(cf->page_first);
 
 			lsp_display_page();
 			break;
@@ -6620,14 +6633,12 @@ static void lsp_workhorse()
 			if (lsp_mode_is_toc()) {
 				lsp_mode_unset_toc();
 				lsp_file_set_pos(cf->page_first);
-			} else {
-				/* Allow to exit from help with 'q' */
-				if (LSP_STR_EQ(cf->name, "lsp-help(1)")) {
-					lsp_cmd_kill_file();
-				} else {
-					return;
-				}
-			}
+			} else if (LSP_STR_EQ(cf->name, "lsp-help(1)"))
+				/* Enable exit from help with 'q' */
+				lsp_cmd_kill_file();
+			else
+				return;
+
 			lsp_display_page();
 			break;
 		case 'r':
@@ -6721,13 +6732,6 @@ static void lsp_file_add(char *name, bool new_current)
 		/* Save position of current_file */
 		lsp_file_set_pos(cf->page_first);
 
-		/*
-		new_file->prev = cf;
-		new_file->next = cf->next;
-		cf->next = new_file;
-		new_file->next->prev = new_file;
-		cf = new_file;
-		*/
 		new_file->next= cf;
 		new_file->prev = cf->prev;
 		cf->prev = new_file;
@@ -7118,10 +7122,8 @@ static void lsp_process_options(int argc, char *argv[])
 	lsp_debug_buffer_print();
 #endif
 	/* Now, process file names in argv */
-	while (optind < argc) {
+	while (optind < argc)
 		lsp_file_add(argv[optind++], 0);
-	}
-
 }
 
 /*

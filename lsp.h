@@ -86,7 +86,7 @@ struct toc_node_t {
 struct lsp_line_t {
 	off_t pos;		/* absolute position in file */
 
-	size_t len;		/* length of raw */
+	size_t len;		/* length of content in raw */
 	char *raw;		/* raw line content */
 	char *current;		/* current-position ptr to inside raw used when
 				 * processing a line.
@@ -108,11 +108,11 @@ struct lsp_line_t {
  * Page context used while composing a page to display.
  */
 struct lsp_pg_ctx {
-	int y;			/* current line */
-	int x;			/* current column */
+	int y;			/* current line in page */
+	int x;			/* current column in page */
 
 	int line_x;		/* x-position in current line to skip
-				 * characters shifted out horizontally. */
+				 * characters shifted out horizontally */
 	wchar_t ch[2];		/* For conversion to cchar_t we need strings of
 				 * wchar_t terminatet by L'\0'. */
 	size_t ch_len;		/* Width of the wide character (ch) we currently
@@ -425,7 +425,7 @@ struct file_t {
 
 	lsp_mode_t mode;      // mode of operation: TOC mode, search mode etc.
 	off_t getch_pos;      // next byte for getch() (0-based)
-	int unaligned;	      // chetch_pos not aligned to buffers
+	int unaligned;	      // != 0: getch_pos not aligned to buffers
 
 	char *name;	      // pathname
 	char *rep_name;	      // replacement name from preprocessor (if any)
@@ -449,7 +449,7 @@ struct file_t {
 	off_t page_last;      // last byte in current page
 
 	size_t lines_count;   // number of lines in file -- so far
-	off_t *lines;	       // record the offsets of the lines in
+	off_t *lines;	      // record the offsets of the lines in
 			      // the file.
 	size_t lines_size;    // current size of the above array
 
