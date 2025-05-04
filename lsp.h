@@ -391,6 +391,7 @@ static void			lsp_search_align_toc_to_match(void);
 static void			lsp_search_align_to_match(int);
 static char *			lsp_search_compile_regex(lsp_mode_t);
 static regmatch_t		lsp_search_next(void);
+static void			lsp_set_cloexec(int);
 static void			lsp_set_no_current_match(void);
 static void			lsp_set_pager(const char *);
 static int			lsp_sgr_extract_enns(const char *, long *, size_t);

@@ -2217,13 +2217,30 @@ static void lsp_open_cterm()
 
 	lsp_debug("%s: opening cterm %s for command input...", __func__, cterm);
 
-	int in_fd = open(cterm, 0, "r");
+	int in_fd = open(cterm, O_CLOEXEC, "r");
 
 	if (in_fd == -1)
 		lsp_error("%s: %s: %s", __func__, cterm, strerror(errno));
 
 	if (in_fd != STDIN_FILENO)
 		lsp_error("%s: TTY input fd (%d) != STDIN_FILENO.", __func__, in_fd);
+}
+
+/*
+ * Set the close-on-exec flag for the given file descriptor.
+ * This function is used for cases when we couldn't set that flag with
+ * open(2).
+ */
+static void lsp_set_cloexec(int fd)
+{
+	int ret;
+
+	ret = fcntl(fd, F_SETFD, FD_CLOEXEC);
+
+	if (ret == -1)
+		lsp_error("%s: fcntl() failed: %s", __func__, strerror(errno));
+
+	return;
 }
 
 /*
@@ -2253,6 +2270,7 @@ static void lsp_file_init_stdin()
 	cf->fd = dup(STDIN_FILENO);
 	close(STDIN_FILENO);
 
+	lsp_set_cloexec(cf->fd);
 	lsp_file_set_blksize();
 
 	if (cf->fd <= 2)
@@ -2338,7 +2356,7 @@ static int lsp_open_file(const char *name)
 	char buffer[512];
 
 	if (lsp_env_open == NULL) {
-		cf->fd = open(cf->name, 0, "r");
+		cf->fd = open(cf->name, O_CLOEXEC, "r");
 		return 0;
 	}
 
@@ -2369,7 +2387,7 @@ static int lsp_open_file(const char *name)
 			 * No data in pipe.  Use original file.
 			 */
 			pclose(fp);
-			cf->fd = open(cf->name, 0, "r");
+			cf->fd = open(cf->name, O_CLOEXEC, "r");
 		} else {
 			/*
 			 * There is data in the pipe.
@@ -2384,6 +2402,8 @@ static int lsp_open_file(const char *name)
 			cf->flags |= LSP_FLAG_POPEN;
 			cf->fp = fp;
 			cf->fd = fileno(fp);
+
+			lsp_set_cloexec(cf->fd);
 		}
 	} else {
 		/*
@@ -2412,7 +2432,7 @@ static int lsp_open_file(const char *name)
 		} else {
 			cf->rep_name = lsp_mdup2str(buffer, nread);
 			lsp_debug("%s: opening replacement file \"%s\"", __func__, cf->rep_name);
-			cf->fd = open(cf->rep_name, 0, "r");
+			cf->fd = open(cf->rep_name, O_CLOEXEC, "r");
 		}
 	}
 
@@ -5930,6 +5950,7 @@ static void lsp_cmd_apropos()
 	cf->fp = fp;
 	cf->fd = fileno(fp);
 
+	lsp_set_cloexec(cf->fd);
 	lsp_file_set_blksize();
 	lsp_file_add_block();
 
@@ -7102,7 +7123,7 @@ static void lsp_process_options(int argc, char *argv[])
 			break;
 		case 'o':
 			lsp_ofile = open(optarg,
-					 O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
+					 O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, S_IRWXU);
 			break;
 		case 'v':
 			lsp_version();
@@ -7216,6 +7237,8 @@ static void lsp_init_logfile()
 		lsp_error("%s: %s", lsp_logfile, strerror(errno));
 
 	setlinebuf(lsp_logfp);
+
+	lsp_set_cloexec(log_fd);
 
 	free(lsp_logfile);
 }
