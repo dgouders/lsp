@@ -1442,7 +1442,7 @@ static void lsp_line_add_wlines(struct lsp_line_t *line)
 		current_col = col;
 
 		if (col >= lsp_maxx || row > 0) {
-			assert(col <= 1);
+			assert(col <= 2);
 			col = 0;
 			row = 0;
 			wmove(lsp_hwin, row, col);
