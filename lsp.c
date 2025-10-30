@@ -4044,6 +4044,8 @@ static size_t lsp_line_get_matches(const struct lsp_line_t *line, regmatch_t **p
  */
 static uint lsp_mblen(const char *mb_p, size_t n)
 {
+	static int debug_once = 1;
+
 	/*
 	 * mblen() returns 0 on null-characters but we don't give it a special
 	 * meaning -- it is just one character.
@@ -4054,8 +4056,12 @@ static uint lsp_mblen(const char *mb_p, size_t n)
 	int ret = mblen(mb_p, n);
 
 	if (ret == -1) {
-		lsp_debug("%s: could not determine length of multibyte character: \"%02X[%u]\"",
-			  __func__, *mb_p, n);
+		if (debug_once) {
+			debug_once = 0;
+
+			lsp_debug("%s: could not determine length of multibyte character: \"%02X[%u]\"",
+				  __func__, *mb_p, n);
+		}
 
 		/* Reset shift state internal to mblen() */
 		mblen(NULL, 0);
