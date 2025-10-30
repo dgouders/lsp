@@ -4579,7 +4579,7 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 		if (lsp_mode_is_toc())
 			cf->toc_last = cf->toc->next;
 		else
-			cf->page_last = line->pos + lindex + 1;
+			cf->page_last = line->pos + lindex + pctx->ch_len;
 
 		/* Expand TAB with spaces */
 		if (pctx->ch[0] == '\t' && pctx->tab_spaces)
