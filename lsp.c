@@ -18,6 +18,7 @@
  *              cm = current match
  *            gref = global reference (see below)
  *            hwin = hidden window
+ *     pg_ctx/pctx = page context (data needed during composition of a page)
  *             ref = reference (to other manual page)
  *             rep = replacement
  *           wline = window line (in contrast to a "physical line", see below)
