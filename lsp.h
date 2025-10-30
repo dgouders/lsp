@@ -477,7 +477,7 @@ struct file_t {
 	 */
 	size_t toc_cursor;
 	/*
-	 * Remember the first and last toc entries (offsets in the file) in the
+	 * Remember the first and last toc entries in the
 	 * window for navigation.
 	 */
 	struct toc_node_t *toc_first;
