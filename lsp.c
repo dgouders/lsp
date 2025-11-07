@@ -1377,6 +1377,8 @@ static void lsp_line_add_wlines(struct lsp_line_t *line)
 	size_t tab_count = 0;
 	size_t cr_count = 0;
 
+	assert(line->n_wlines == 1);
+
 	lsp_init_hwin();	/* Initialize hidden window. */
 
 	while (i < line->len) {
