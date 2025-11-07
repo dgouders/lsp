@@ -4285,6 +4285,7 @@ static void lsp_page_handle_matches(struct lsp_line_t *line, struct lsp_pg_ctx *
 static int lsp_page_display_char(struct lsp_line_t *line, struct lsp_pg_ctx *pctx)
 {
 	cchar_t cchar_ch[2];	/* Complex char for cursesw routines. */
+	typeof(pctx->y) page_line = pctx->y;
 
 	/*
 	 * line_x is an artificial x position inside the current line.
@@ -4350,15 +4351,17 @@ static int lsp_page_display_char(struct lsp_line_t *line, struct lsp_pg_ctx *pct
 
 	getyx(lsp_win, pctx->y, pctx->x);
 
-	if (pctx->x > 0)
+
+	/*
+	 * Line isn't done if the page line didn't change.
+	 */
+	if (pctx->y == page_line)
 		return 0;
 
 	/*
-	 * pctx-> x == 0
-	 * Line is done if ncurses skipped to the next line and
-	 * we only have a linefeed left in this line.
-	 */
-	/*
+	 * Line is done if ncurses skipped to the next page line and
+	 * just a linefeed is left in this line.
+	 *
 	 * The line could end with an SGR sequence before the
 	 * linefeed.
 	 */
