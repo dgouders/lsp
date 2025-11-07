@@ -4927,9 +4927,9 @@ static void lsp_wline_bw(int n)
 
 	size_t wline = 0;
 
-	while (1) {
-		lsp_debug("%s: searching for wline bol at %ld", __func__, cf->page_first - line->pos);
+	lsp_debug("%s: searching for wline bol at %ld", __func__, cf->page_first - line->pos);
 
+	while (1) {
 		if (line->pos + line->wlines[wline] == cf->page_first)
 			break;
 
