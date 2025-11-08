@@ -1367,6 +1367,7 @@ static void lsp_line_add_wlines(struct lsp_line_t *line)
 	int col = 0;
 
 	size_t i = 0;		/* current byte in the line */
+	size_t ch_len;
 	int current_col = 0;    /* current column in one window line */
 	size_t wli = 0;		/* wline index */
 	char new_wline = 0;	/* to identify parts containing just a newline */
@@ -1428,9 +1429,11 @@ static void lsp_line_add_wlines(struct lsp_line_t *line)
 			/* Only one char caused this replacement. */
 			if (cr_count-- == 1)
 				i++;
-		} else
+		} else {
 			/* Proceed with next (possibly multibyte) character. */
-			i += lsp_mbtowc(ch, line->raw + i, line->len - i);
+			ch_len = lsp_mbtowc(ch, line->raw + i, line->len - i);
+			i += ch_len;
+		}
 
 		/*
 		 * Output the char to hidden window and after that check the new
@@ -1445,6 +1448,14 @@ static void lsp_line_add_wlines(struct lsp_line_t *line)
 
 		if (col >= lsp_maxx || row > 0) {
 			assert(col <= 2);
+
+			if (row > 0 && col > 0)
+				/*
+				 * The character didn't fit into the first line.
+				 * So, the new wline starts with this character.
+				 */
+				i -= ch_len;
+
 			col = 0;
 			row = 0;
 			wmove(lsp_hwin, row, col);
@@ -4274,11 +4285,37 @@ static void lsp_page_handle_matches(struct lsp_line_t *line, struct lsp_pg_ctx *
 }
 
 /*
+ * Determine the number of columns the given wide character will require on an
+ * output page.
+ *
+ * Output the character to the hidden window and return the resulting column.
+ */
+static char lsp_get_wc_cols(wchar_t *wc)
+{
+	/* Complex char for cursesw routines. */
+	cchar_t cchar_ch[2];
+	int row = 0;
+	int col = 0;
+
+	lsp_init_hwin();
+
+	setcchar(cchar_ch, wc, A_NORMAL, LSP_DEFAULT_PAIR, NULL);
+	wadd_wch(lsp_hwin, cchar_ch);
+	getyx(lsp_hwin, row, col);
+
+	/* Let's identify situations other than newline, that also change the row. */
+	assert(row == 0 || col == 0);
+
+	return col;
+}
+
+/*
  * Display the next character in the given line at the current position in the
  * page (all given in pctx).
  *
  * Return:
- *   1     the output of that character has the side-effect that we are done
+ *   2     The current character didn't fit on the page; line and page are done.
+ *   1     The output of that character has the side-effect that we are done
  *         with the current line,
  *   0     otherwise.
  */
@@ -4344,7 +4381,19 @@ static int lsp_page_display_char(struct lsp_line_t *line, struct lsp_pg_ctx *pct
 
 	/*
 	 * All the above happened to finally output a single character.
+	 *
+	 * If we are on the last page line, we calculate the needed columns for
+	 * the next character to display and if it requires more horizontal space
+	 * (columns) than left in the current line, the page is filled and we
+	 * are done with the line.
 	 */
+	if (pctx->y == lsp_maxy - 2) {
+		int cols = lsp_get_wc_cols(pctx->ch);
+
+		if (pctx->x + cols > lsp_maxx)
+			return 2;
+	}
+
 	setcchar(cchar_ch, pctx->ch, pctx->attr, pctx->pair, NULL);
 
 	mvwadd_wch(lsp_win, pctx->y, pctx->x, cchar_ch);
@@ -4599,8 +4648,17 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 		/* Output the current character. */
 		ret = lsp_page_display_char(line, pctx);
 
-		if (ret)
+		/*
+		 * Handle all possible return values != 0.
+		 *
+		 * 1: current line fully processed
+		 # 2: page is complete, character wasn't output
+		 */
+		if (ret) {
+			if (ret == 2)
+				cf->page_last -= pctx->ch_len;
 			goto line_done;
+		}
 
 		pctx->line_x++;
 

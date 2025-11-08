@@ -288,6 +288,7 @@ static struct lsp_line_t *	lsp_get_next_display_line(void);
 static char *			lsp_get_parent_cmd_line(pid_t);
 static size_t			lsp_get_sgr_len(const char *);
 static struct lsp_line_t *	lsp_get_this_line(void);
+static char			lsp_get_wc_cols(wchar_t *);
 static struct gref_t *		lsp_gref_find(char *);
 static int			lsp_gref_henter(struct gref_t *);
 static void			lsp_goto_bol(void);
