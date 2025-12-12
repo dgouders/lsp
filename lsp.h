@@ -101,10 +101,17 @@ struct toc_node_t {
  * The member .normalized is for data without formatting information,
  * i.e. backspace and SGR sequences.
  *
- * Note: .raw and .normalized are *not* strings with null-terminators.
- *       The reason is that users can feed us any data in the range [0x00-0xff]
- *       -- null-terminators for .raw and .normalized would be meaningless and
- *       actually just complicate things.
+ * Note: .raw is *not* a string with a null-terminator.
+ *	 The reason is that users can feed us any data in the range [0x00-0xff]
+ *       -- a null-terminator for .raw would be meaningless and actually just
+ *       complicate things.
+ *	 On the other side, .normalized is null-terminated but should not be
+ *       seen as an ordinary string, because -- depending on the input -- the
+ *       data in it can contain null-characters.  For this reason, we have nlen
+ *       holding the length of .normalized.
+ *	 Yes, we match regular expressions on it, but with having in mind that
+ *       regexec(3) probably doesn't test the whole length of .normalized,
+ *       because it might see a null-character before the real null-terminator.
  *
  * Lines might be longer than the window width.  So, we also maintain pointers
  * to "wlines".  Currently, this overhead just makes scrolling backwards

@@ -1543,6 +1543,11 @@ static struct lsp_line_t *lsp_get_line_from_here()
 		ret = lsp_file_getch(&ch);
 	}
 
+	/* Ensure for a final newline in each line we return --
+	   even if the file has no trailing one. */
+	if (ret == -1)
+		str[pos++] = '\n';
+
 	/* Reallocate to correct size */
 	str = lsp_realloc(str, pos + 1);
 
@@ -4041,7 +4046,7 @@ static size_t lsp_line_get_matches(const struct lsp_line_t *line, regmatch_t **p
 	 *
 	 * Duplicate the normalized line and remove the final \n.
 	 */
-	char *sstring = lsp_mdup(line->normalized, line->nlen - 1);
+	char *sstring = lsp_mdup2str(line->normalized, line->nlen - 1);
 	size_t slen = line->nlen - 1;
 
 	/* Allocate memory for max possible number of matches and that
@@ -4975,7 +4980,7 @@ static void lsp_cmd_forward(int n)
 	/* Rewind to first byte in the page */
 	lsp_file_set_pos(cf->page_first);
 
-	if (cf->page_last == cf->size)
+	if (cf->size != LSP_FSIZE_UNKNOWN && cf->page_last >= cf->size)
 		return;
 
 	if (lsp_chop_lines != 0) {
@@ -5644,7 +5649,7 @@ static char *lsp_man_get_section(off_t pos)
 	if (line->pos == 0)
 		section_name = strdup("_start_of_manual_page_");
 	else
-		section_name = lsp_mdup2str(line->normalized, line->nlen);
+		section_name = lsp_mdup(line->normalized, line->nlen + 1);
 
 	lsp_line_dtor(line);
 
@@ -6582,7 +6587,7 @@ static void lsp_workhorse()
 					cf->toc = cf->toc_first;
 			}
 
-			if (cf->page_last == cf->size)
+			if (cf->size != LSP_FSIZE_UNKNOWN && cf->page_last >= cf->size)
 				lsp_file_set_pos(cf->page_first);
 
 			lsp_display_page(); /* next page */
