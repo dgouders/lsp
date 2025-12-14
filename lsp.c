@@ -4347,31 +4347,6 @@ static void lsp_page_handle_matches(struct lsp_line_t *line, struct lsp_pg_ctx *
 }
 
 /*
- * Determine the number of columns the given wide character will require on an
- * output page.
- *
- * Output the character to the hidden window and return the resulting column.
- */
-static char lsp_get_wc_cols(wchar_t *wc)
-{
-	/* Complex char for cursesw routines. */
-	cchar_t cchar_ch[2];
-	int row = 0;
-	int col = 0;
-
-	lsp_init_hwin();
-
-	setcchar(cchar_ch, wc, A_NORMAL, LSP_DEFAULT_PAIR, NULL);
-	wadd_wch(lsp_hwin, cchar_ch);
-	getyx(lsp_hwin, row, col);
-
-	/* Let's identify situations other than newline, that also change the row. */
-	assert(row == 0 || col == 0);
-
-	return col;
-}
-
-/*
  * Display the next character in the given line at the current position in the
  * page (all given in pctx).
  *
@@ -4442,6 +4417,18 @@ static int lsp_page_display_char(struct lsp_line_t *line, struct lsp_pg_ctx *pct
 	}
 
 	/*
+	 * Get width of character to output and replace it if it isn't a newline
+	 * and its width is unknown.
+	 */
+	int cols = wcwidth(pctx->ch[0]);
+
+	if (cols == -1) {
+		cols = 1;
+		if (pctx->ch[0] != '\n')
+			pctx->ch[0] = '.';
+	}
+
+	/*
 	 * All the above happened to finally output a single character.
 	 *
 	 * If we are on the last page line, we calculate the needed columns for
@@ -4450,8 +4437,6 @@ static int lsp_page_display_char(struct lsp_line_t *line, struct lsp_pg_ctx *pct
 	 * are done with the line.
 	 */
 	if (pctx->y == lsp_maxy - 2) {
-		int cols = lsp_get_wc_cols(pctx->ch);
-
 		if (pctx->x + cols > lsp_maxx)
 			return 2;
 	}
