@@ -17,7 +17,6 @@
  *              cf = current file
  *              cm = current match
  *            gref = global reference (see below)
- *            hwin = hidden window
  *     pg_ctx/pctx = page context (data needed during composition of a page)
  *             ref = reference (to other manual page)
  *             rep = replacement
@@ -1356,24 +1355,6 @@ static struct lsp_line_t *lsp_get_this_line() {
 }
 
 /*
- * If not already there or if the existing one has a different width:
- *
- * Create a hidden window that we use to fill its top line
- * to come to know where in a "physical" line lines in the window start.
- */
-static void lsp_init_hwin()
-{
-	if (lsp_hwin == NULL || lsp_hwin_cols != lsp_maxx) {
-		if (lsp_hwin != NULL)
-			delwin(lsp_hwin);
-		lsp_hwin = newwin(2, lsp_maxx, 0, 0);
-		lsp_hwin_cols = lsp_maxx;
-	}
-
-	wmove(lsp_hwin, 0, 0);
-}
-
-/*
  * One line might be longer than the current window width and thus consist of
  * several lines in the window.
  *
@@ -1383,10 +1364,7 @@ static void lsp_init_hwin()
 static void lsp_line_add_wlines(struct lsp_line_t *line)
 {
 	wchar_t ch[2] = { L'\0', L'\0' };
-	/* Complex char for cursesw routines. */
-	cchar_t cchar_ch[2];
 
-	int row = 0;
 	int col = 0;
 
 	size_t i = 0;		/* current byte in the line */
@@ -1402,8 +1380,6 @@ static void lsp_line_add_wlines(struct lsp_line_t *line)
 	size_t cr_count = 0;
 
 	assert(line->n_wlines == 1);
-
-	lsp_init_hwin();	/* Initialize hidden window. */
 
 	while (i < line->len) {
 		if (current_col >= lsp_maxx) {
@@ -1456,34 +1432,39 @@ static void lsp_line_add_wlines(struct lsp_line_t *line)
 			/* Proceed with next (possibly multibyte) character. */
 			ch_len = lsp_mbtowc(ch, line->raw + i, line->len - i);
 			i += ch_len;
+			if (ch[0] == '\n')
+				break;
 		}
 
-		/*
-		 * Output the char to hidden window and after that check the new
-		 * column.  If it exceeds the window width the line was
-		 * filled and the next character starts a new window line.
-		 */
-		setcchar(cchar_ch, ch, A_NORMAL, LSP_DEFAULT_PAIR, NULL);
-		wadd_wch(lsp_hwin, cchar_ch);
-		getyx(lsp_hwin, row, col);
+		int cwidth;
+		cwidth = wcwidth(ch[0]);
 
+		if (cwidth == -1)
+			/* For now, characters, whose width is unknown, will be
+			 * replaced by a single period '.' in
+			 * lsp_page_display_char().
+			 * Exception is newline '\n' which we handle above.
+			 */
+			cwidth = 1;
+
+		col += cwidth;
 		current_col = col;
 
-		if (col >= lsp_maxx || row > 0) {
-			assert(col <= 2);
+		if (col < lsp_maxx)
+			continue;
 
-			if (row > 0 && col > 0)
-				/*
-				 * The character didn't fit into the first line.
-				 * So, the new wline starts with this character.
-				 */
-				i -= ch_len;
+		/*
+		 * col >= lsp_maxx
+		 * The character at least fills the line.
+		 */
+		if (col > lsp_maxx)
+			/*
+			 * The character doesn't fit into the line.
+			 * So, the next wline starts with this character.
+			 */
+			i -= ch_len;
 
-			col = 0;
-			row = 0;
-			wmove(lsp_hwin, row, col);
-			current_col = lsp_maxx;
-		}
+		col = 0;
 	}
 
 	return;
@@ -2047,9 +2028,6 @@ static void lsp_file_add_block()
 static int lsp_error(const char *format, ...)
 {
 	va_list ap;
-
-	if (lsp_hwin != NULL)
-		delwin(lsp_hwin);
 
 	/* Check if curses has been initialized and do cleanup */
 	if (isendwin() == FALSE)
@@ -4419,6 +4397,7 @@ static int lsp_page_display_char(struct lsp_line_t *line, struct lsp_pg_ctx *pct
 	/*
 	 * Get width of character to output and replace it if it isn't a newline
 	 * and its width is unknown.
+	 * For now, we replace such characters by just a period '.'.
 	 */
 	int cols = wcwidth(pctx->ch[0]);
 
@@ -7312,9 +7291,6 @@ static void lsp_finish()
 
 	lsp_grefs_dtor();
 
-	if (lsp_hwin != NULL)
-		delwin(lsp_hwin);
-
 	if (isendwin() == FALSE)
 		endwin();
 
@@ -7410,9 +7386,6 @@ static void lsp_init()
 
 	lsp_htable_entries = 100000;
 	lsp_grefs_count = 0;
-
-	lsp_hwin = NULL;
-	lsp_hwin_cols = -1;
 
 	lsp_pinfo_ctor();
 }

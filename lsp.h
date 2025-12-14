@@ -344,7 +344,6 @@ static struct gref_t *		lsp_gref_search(const char *) lsp_attr_wur;
 static bool			lsp_has_man_placeholders(const char *) lsp_attr_pure;
 static void			lsp_init(void);
 static void			lsp_init_cmd_input(void);
-static void			lsp_init_hwin(void);
 #if DEBUG
 static void			lsp_init_logfile(void);
 #endif
@@ -701,10 +700,6 @@ struct {
 	size_t words;
 	size_t elines;
 } lsp_reposition;
-
-/* Hidden window and its width for dividing physical lines into window lines. */
-WINDOW *lsp_hwin;
-int lsp_hwin_cols;
 
 #if DEBUG
 /*
