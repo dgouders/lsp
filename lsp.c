@@ -4814,7 +4814,7 @@ static void lsp_display_page()
 	};
 
 	/* Reload file if necessary, e.g. after a resize. */
-	if (cf->do_reload)
+	if (lsp_auto_reloads && cf->do_reload)
 		lsp_file_reload();
 
 	if (!lsp_mode_is_toc())
@@ -5545,7 +5545,7 @@ static void lsp_cmd_resize(int force)
 
 	lsp_debug("%s: new geometry is %ldx%ld", __func__, lsp_maxx, lsp_maxy);
 
-	if (lsp_file_is_auto_reloadable())
+	if (lsp_auto_reloads && lsp_file_is_auto_reloadable())
 		lsp_file_reload();
 
 	struct file_t *here = cf;
@@ -6382,6 +6382,12 @@ static void lsp_cmd_toggle_options()
 		   added/removed. */
 		lsp_cmd_resize(1);
 		break;
+	case 'r':
+		if ((lsp_auto_reloads = !lsp_auto_reloads))
+			lsp_prompt = "Automatic reloading ON.";
+		else
+			lsp_prompt = "Automatic reloading OFF.";
+		break;
 	case 'V':
 		lsp_verify = !lsp_verify;
 
@@ -7182,6 +7188,7 @@ static void lsp_process_options(int argc, char *argv[])
 		{"log-file",		required_argument,	0, 'l'},
 		{"line-numbers",	no_argument,		0, 'n'},
 		{"output-file",		required_argument,	0, 'o'},
+		{"no-auto-reloads",	no_argument,		0, 'r'},
 		{"search_string",	required_argument,	0, 's'},
 		{"version",		no_argument,		0, 'v'},
 		{"no-color",		no_argument,		0, '0'},
@@ -7194,7 +7201,7 @@ static void lsp_process_options(int argc, char *argv[])
 	};
 
 	while (1) {
-		opt = getopt_long(argc, argv, "achiIl:no:s:Vv",
+		opt = getopt_long(argc, argv, "achiIl:no:rs:Vv",
 				  long_options, &long_index);
 
 		if (opt == -1)
@@ -7243,6 +7250,9 @@ static void lsp_process_options(int argc, char *argv[])
 			break;
 		case 'l':
 			lsp_logfile = strdup(optarg);
+			break;
+		case 'r':
+			lsp_auto_reloads = false;
 			break;
 		case 's':
 			strcpy(lsp_search_string, optarg);

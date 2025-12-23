@@ -640,6 +640,9 @@ FILE	*lsp_logfp;
 int	lsp_ofile;
 bool	lsp_do_line_numbers = false;
 
+/* Toggle for automatic reloads on window resizes */
+bool	lsp_auto_reloads = true;
+
 /* Do colored output or not.
    Depends on terminal capabilities; --no-color also turns this off */
 bool	lsp_color;
