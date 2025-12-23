@@ -1410,6 +1410,14 @@ static void lsp_line_add_wlines(struct lsp_line_t *line)
 		if (line->raw[i] == '\t') {
 			/* -1, because the \t itself also counts. */
 			tab_count = lsp_expand_tab(current_col) - 1;
+
+			if (col + tab_count >= lsp_maxx) {
+				/* TAB expansion will fill this wline. */
+				i++;			/* consume this character */
+				current_col = lsp_maxx; /* trigger a new wline */
+				goto wline_done;
+			}
+
 			line->raw[i] = ' ';
 		}
 
@@ -1422,6 +1430,9 @@ static void lsp_line_add_wlines(struct lsp_line_t *line)
 		if (tab_count) {
 			ch[0] = ' ';
 			tab_count--;
+			if (!tab_count)
+				/* Recover tab character after expansion. */
+				line->raw[i] = '\t';
 		} else if (cr_count) {
 			/* For CR we insert first a '^' and second a 'M'. */
 			ch[0] = line->raw[i] = cr_count == 2 ? '^' : 'M';
@@ -1452,7 +1463,7 @@ static void lsp_line_add_wlines(struct lsp_line_t *line)
 
 		if (col < lsp_maxx)
 			continue;
-
+	wline_done:
 		/*
 		 * col >= lsp_maxx
 		 * The character at least fills the line.
