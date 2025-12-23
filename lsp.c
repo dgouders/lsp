@@ -4989,6 +4989,29 @@ static void lsp_cmd_backward(int n)
 }
 
 /*
+ * In the given line with detected wlines, find the beginning of a wline that is
+ * <= the given offset.
+ * The <= ensures that we always succeed, because every line has at least
+ * a wline starting at offset 0.
+ *
+ * Return the wline offset within the line.
+ */
+static size_t lsp_line_find_wline_bol(struct lsp_line_t *line, off_t offset)
+{
+	size_t wline = 0;
+	size_t match = 0;
+
+	lsp_debug("%s: searching for wline bol at <= %ld", __func__, cf->page_first - line->pos);
+
+	while (wline < line->n_wlines && line->wlines[wline] <= offset)
+		match = wline++;
+
+	lsp_debug("%s: found wline bol %ld", __func__, line->wlines[match]);
+
+	return match;
+}
+
+/*
  * Move backward in file using window lines.
  * Move n lines or one page if n == 0;
  *
@@ -5021,19 +5044,9 @@ static void lsp_wline_bw(int n)
 
 	lsp_line_add_wlines(line);
 
-	size_t wline = 0;
+	assert(cf->page_first >= line->pos);
 
-	lsp_debug("%s: searching for wline bol at %ld", __func__, cf->page_first - line->pos);
-
-	while (1) {
-		if (line->pos + line->wlines[wline] == cf->page_first)
-			break;
-
-		wline++;
-
-		if (wline == line->n_wlines)
-			lsp_error("%s: Cannot find start of current page.", __func__);
-	}
+	size_t wline = lsp_line_find_wline_bol(line, cf->page_first - line->pos);
 
 	/*
 	 * Set file position and return, if backward movement can be done inside

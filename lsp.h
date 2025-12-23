@@ -360,6 +360,7 @@ static size_t			lsp_line_count_words(struct lsp_line_t *) lsp_attr_pure;
 static struct lsp_line_t *	lsp_line_ctor(void) lsp_attr_wur;
 static void			lsp_line_cut_tail(struct lsp_line_t *, off_t);
 static void			lsp_line_dtor(struct lsp_line_t *);
+static size_t			lsp_line_find_wline_bol(struct lsp_line_t *, off_t);
 static int			lsp_line_handle_leading_sgr(attr_t *, short *);
 static size_t			lsp_line_get_matches(const struct lsp_line_t *, regmatch_t **);
 static regmatch_t		lsp_line_get_last_match(struct lsp_line_t **);
