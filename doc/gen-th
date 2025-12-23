@@ -1,0 +1,16 @@
+#!/bin/bash
+#
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Copyright (C) 2023-2025 Dirk Gouders
+#
+# Generate .TH request for one of lsp's manual pages.
+# The single argument gives the name of the manual page.
+#
+if [ "$1" == "lsp-help" ] ; then
+    header_text="lsp online help"
+else
+    header_text="User commands"
+fi
+
+echo ".TH $1 1 $(date +%m/%d/%Y) $(cat ../.version) \"$header_text\"" > $1.th
