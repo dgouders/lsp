@@ -4336,6 +4336,18 @@ static void lsp_page_handle_matches(struct lsp_line_t *line, struct lsp_pg_ctx *
 }
 
 /*
+ * Output the given pctx->ch to ncurses window.
+ */
+static void lsp_page_output_char(struct lsp_pg_ctx *pctx)
+{
+	cchar_t cchar_ch[2];	/* Complex char for cursesw routines. */
+
+	setcchar(cchar_ch, pctx->ch, pctx->attr, pctx->pair, NULL);
+	mvwadd_wch(lsp_win, pctx->y, pctx->x, cchar_ch);
+	getyx(lsp_win, pctx->y, pctx->x);
+}
+
+/*
  * Display the next character in the given line at the current position in the
  * page (all given in pctx).
  *
@@ -4347,7 +4359,6 @@ static void lsp_page_handle_matches(struct lsp_line_t *line, struct lsp_pg_ctx *
  */
 static int lsp_page_display_char(struct lsp_line_t *line, struct lsp_pg_ctx *pctx)
 {
-	cchar_t cchar_ch[2];	/* Complex char for cursesw routines. */
 	typeof(pctx->y) page_line = pctx->y;
 
 	/*
@@ -4365,11 +4376,7 @@ static int lsp_page_display_char(struct lsp_line_t *line, struct lsp_pg_ctx *pct
 		if (pctx->next_ch != '\n')
 			pctx->ch[0] = '>';
 
-		setcchar(cchar_ch, pctx->ch, pctx->attr, pctx->pair, NULL);
-
-		mvwadd_wch(lsp_win, pctx->y, pctx->x, cchar_ch);
-
-		getyx(lsp_win, pctx->y, pctx->x);
+		lsp_page_output_char(pctx);
 		return 1;
 	}
 
@@ -4431,12 +4438,7 @@ static int lsp_page_display_char(struct lsp_line_t *line, struct lsp_pg_ctx *pct
 			return 2;
 	}
 
-	setcchar(cchar_ch, pctx->ch, pctx->attr, pctx->pair, NULL);
-
-	mvwadd_wch(lsp_win, pctx->y, pctx->x, cchar_ch);
-
-	getyx(lsp_win, pctx->y, pctx->x);
-
+	lsp_page_output_char(pctx);
 
 	/*
 	 * Line isn't done if the page line didn't change.
