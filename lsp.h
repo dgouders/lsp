@@ -168,8 +168,6 @@ struct lsp_pg_ctx {
 	ssize_t cm_index;	/* index of pmatch array that is the current match */
 	int match_active;	/* flag if currently highlighting a match */
 
-	bool cr_active;		/* flag for ongoing translation '\r' => "^M" */
-
 	int tab_spaces;		/* Amount of spaces needed to expand a current
 				 * TAB in a line. */
 };

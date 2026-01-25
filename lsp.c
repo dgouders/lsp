@@ -1373,11 +1373,8 @@ static void lsp_line_add_wlines(struct lsp_line_t *line)
 	size_t wli = 0;		/* wline index */
 	char new_wline = 0;	/* to identify parts containing just a newline */
 
-	/* Two variables to count conversion characters for TABs and
-	 * carriage return that we need to virtually insert into the line.
-	 */
+	/* Variable to count conversion characters for TABs. */
 	size_t tab_count = 0;
-	size_t cr_count = 0;
 
 	assert(line->n_wlines == 1);
 
@@ -1395,6 +1392,14 @@ static void lsp_line_add_wlines(struct lsp_line_t *line)
 
 		/* Ignore possible in-band attributes. */
 		i += lsp_skip_to_payload(line->raw + i, line->len - i);
+
+		/*
+		 * We treat \r\n as just a \n.
+		 */
+		if (line->raw[i] == '\r' &&
+		    i + 1 < line->len &&
+		    line->raw[i + 1] ==  '\n')
+				i++;
 
 		/* If we are in a new window line and it consists of just a
 		   newline (plus possible SGR sequences) we don't count this
@@ -1421,24 +1426,12 @@ static void lsp_line_add_wlines(struct lsp_line_t *line)
 			line->raw[i] = ' ';
 		}
 
-		/* Replace carriage return with ^M. */
-		if (line->raw[i] == '\r' && !lsp_keep_cr) {
-			cr_count = 2;
-
-		}
-
 		if (tab_count) {
 			ch[0] = ' ';
 			tab_count--;
 			if (!tab_count)
 				/* Recover tab character after expansion. */
 				line->raw[i] = '\t';
-		} else if (cr_count) {
-			/* For CR we insert first a '^' and second a 'M'. */
-			ch[0] = line->raw[i] = cr_count == 2 ? '^' : 'M';
-			/* Only one char caused this replacement. */
-			if (cr_count-- == 1)
-				i++;
 		} else {
 			/* Proceed with next (possibly multibyte) character. */
 			ch_len = lsp_mbtowc(ch, line->raw + i, line->len - i);
@@ -4370,6 +4363,20 @@ static int lsp_page_display_char(struct lsp_line_t *line, struct lsp_pg_ctx *pct
 	if (pctx->line_x < lsp_shift && pctx->ch[0] != '\n')
 		return 0;
 
+	/*
+	 * Convert CR '\r' and CRLF "\r\n" to LF '\n'.
+	 * In the latter case, the line is done.
+	 */
+	if (pctx->ch[0] == '\r') {
+		pctx->ch[0] = '\n';
+		lsp_page_output_char(pctx);
+
+		if (pctx->next_ch == '\n') {
+			cf->page_last++;
+			return 1;
+		} else
+			return 0;
+	}
 
 	/* Chop the line when we reach the width of the window. */
 	if (lsp_chop_lines && pctx->x == lsp_maxx - 1) {
@@ -4390,25 +4397,6 @@ static int lsp_page_display_char(struct lsp_line_t *line, struct lsp_pg_ctx *pct
 		if (!lsp_mode_is_highlight() && pctx->y == cf->toc_cursor) {
 			pctx->attr = A_REVERSE;
 			pctx->pair = LSP_REVERSE_PAIR;
-		}
-	}
-
-	/*
-	 * Handle carriage return characters
-	 * Because we replace a single char '\r' by two "^M", we
-	 * need a flag to tell us we are currently doing
-	 * such a translation.
-	 * In the first round, output '^' and set the
-	 * flag and in the second round output 'M' and
-	 * turn that flag off.
-	 */
-	if (!lsp_keep_cr && (pctx->ch[0] == '\r' || pctx->cr_active)) {
-		if (pctx->cr_active) {
-			pctx->ch[0] = 'M';
-			pctx->cr_active = false;
-		} else {
-			pctx->ch[0] = '^';
-			pctx->cr_active = true;
 		}
 	}
 
@@ -4635,12 +4623,6 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 
 	int ret;
 
-	/*
-	 * Remember ongoing translation '\r' => "^M".
-	 * When a new line starts there is none.
-	 */
-	pctx->cr_active = false;
-
 	/* New lines start with fresh line_x. */
 	pctx->line_x = 0;
 
@@ -4724,11 +4706,7 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 			 */
 			if (--pctx->tab_spaces == 0)
 				line->current++;
-		} else if (pctx->cr_active == false)
-			/*
-			 * Don't go ahead when we are currently
-			 * translating '\r' to "^M'.
-			 */
+		} else
 			line->current += pctx->ch_len;
 	}
 
@@ -4812,7 +4790,6 @@ static void lsp_display_page()
 		.pmatch = NULL,
 		.cm_index = -1,
 		.match_active = 0,
-		.cr_active = false
 	};
 
 	/* Reload file if necessary, e.g. after a resize. */

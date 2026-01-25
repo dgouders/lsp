@@ -5,7 +5,7 @@
 .\"
 .\" Copyright (C) 2023-2025 Dirk Gouders
 .\"
-.TH lsp 1 12/23/2025 0.6.0 "User commands"
+.TH lsp 1 01/25/2026 0.6.0 "User commands"
 .\"--------------------------------------------------------------------
 .SH Name
 .\"--------------------------------------------------------------------
@@ -148,24 +148,17 @@ to turn off highlighting of matches.
 .B lsp
 tries to hand over data as is to
 .MR ncurses 3
-but some data is either converted to text attributes
-or translated to some other data.
+but non-printable data is either converted to text attributes
+or translated.
 
 This happens on all input \(em
 .B lsp
 doesn't distinguish between text and non-text input, it relies on
 a decent preprocessor.
 .
-.IP "\[bu] SGR sequences" 2.5
-.br
-SGR sequences are recognized and translated.
-
-Currently, only a limited subset is implemented mostly by looking at
-what input
-.MR git 1
-feeds
-.B lsp
-with.
+.IP "\[bu] SGR sequences are recognized and translated." 2.5
+.
+Currently, only a limited subset is implemented.
 .
 .IP "\[bu] backspace sequences" 2.5
 Those are sequences according to
@@ -176,21 +169,20 @@ italics.
 .IP "\[bu] carriage return (\[aq]\[rs]r\[aq])" 2.5
 .br
 .B lsp
-replaces carriage return
-with "^M", because the original has too toxic effects
-on
-.BR lsp 's
-output.
-
-This can be turned off with
-.BR --keep-cr .
+replaces carriage return \[aq]\[rs]r\[aq]
+with new line \[aq]\[rs]n\[aq], and in sequences of carriage return
+and new line "\[rs]r\[rs]n", the carriage return is ignored so that
+.B lsp
+just skips to the next page line.
 .
 .IP "\[bu] TAB (\[aq]\[rs]t\[aq])" 2.5
 .br
-TAB stops are expanded to spaces according to their horizontal
+TABs are expanded to spaces according to their horizontal
 position
 .IR x
 with a currently hardcoded maximum width of 8.
+.
+.IP "\[bu] Other non-printable characters are replaced by a period \[aq].\[aq]." 2.5
 .LP
 .\"--------------------------------------------------------------------
 .SH lsp_cat / Toxic Manual Pages
@@ -315,13 +307,6 @@ Turn on case sensitivity for names of manual pages.
 .IP
 .
 This is used for example to verify references to other manual pages.
-.
-.TP
-.
-.B --keep-cr
-.
-Do not translate carriage return to "^M" on output.
-.
 .
 .TP
 .
