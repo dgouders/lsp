@@ -1173,9 +1173,9 @@ again:
 	lsp_file_align_buffer();
 
 	/* Position to next buffer if necessary and we already read it. */
-	if (lsp_pos == (cf->data->seek + cf->blksize))
-		if (cf->data->next->seek == (cf->data->seek + cf->blksize))
-			cf->data = cf->data->next;
+	if (lsp_pos == (cf->data->seek + cf->blksize) &&
+	    cf->data->next->seek == (cf->data->seek + cf->blksize))
+		cf->data = cf->data->next;
 
 	if (cf->seek > lsp_pos && lsp_pos < (cf->data->seek + cf->blksize)) {
 		if (lsp_pos < cf->data->seek)
@@ -1939,15 +1939,14 @@ static ssize_t lsp_file_read_block(size_t size_to_read)
 
 	/* When this is a new buffer and if a previous buffer exists and ends
 	   with newline this buffer is the start of a new line. */
-	if (read_offset == 0 && cf->seek - nread != 0) {
-		if (cf->data->prev->buffer[cf->blksize - 1] == '\n')
-			lsp_lines_add(cf->data->seek);
-	}
+	if (read_offset == 0 &&
+	    (cf->seek - nread) != 0 &&
+	    cf->data->prev->buffer[cf->blksize - 1] == '\n')
+		lsp_lines_add(cf->data->seek);
 
-	if (read_offset > 0) {
-		if (buffer_p[-1] == '\n')
-			lsp_lines_add(cf->data->seek + read_offset);
-	}
+	if (read_offset > 0 &&
+	    buffer_p[-1] == '\n')
+		lsp_lines_add(cf->data->seek + read_offset);
 
 	/* Inspect all of the read data to keep record of lines */
 	for (int i = 0; (i + 1) < nread; i++)
@@ -4421,10 +4420,9 @@ static int lsp_page_display_char(struct lsp_line_t *line, struct lsp_pg_ctx *pct
 	 * (columns) than left in the current line, the page is filled and we
 	 * are done with the line.
 	 */
-	if (pctx->y == lsp_maxy - 2) {
-		if (pctx->x + cols > lsp_maxx)
-			return 2;
-	}
+	if (pctx->y == (lsp_maxy - 2) &&
+	    (pctx->x + cols) > lsp_maxx)
+		return 2;
 
 	lsp_page_output_char(pctx);
 
@@ -4687,11 +4685,12 @@ static void lsp_page_display_line(struct lsp_line_t *line, struct lsp_pg_ctx *pc
 		 * Reset attributes if we are not in a search match or
 		 * an SGR sequence.
 		 */
-		if (pctx->attr != A_NORMAL && pctx->cm_index == -1)
-			if (!pctx->sgr_active) {
-				pctx->attr = A_NORMAL;
-				pctx->pair = LSP_DEFAULT_PAIR;
-			}
+		if (pctx->attr != A_NORMAL &&
+		    pctx->cm_index == -1 &&
+		    !pctx->sgr_active) {
+			pctx->attr = A_NORMAL;
+			pctx->pair = LSP_DEFAULT_PAIR;
+		}
 
 		/*
 		 * Stay at position in line, if we are currently
@@ -4738,9 +4737,9 @@ static void lsp_page_process_lines(struct lsp_pg_ctx *pctx)
 		 * we need to process SGR sequences that might be in the
 		 * previous part of the line.
 		 */
-		if (!lsp_file_is_at_bol())
-			if (lsp_line_handle_leading_sgr(&pctx->attr, &pctx->pair))
-				pctx->sgr_active = 1;
+		if (!lsp_file_is_at_bol() &&
+		    lsp_line_handle_leading_sgr(&pctx->attr, &pctx->pair))
+			pctx->sgr_active = 1;
 
 		lsp_line_dtor(line);
 
