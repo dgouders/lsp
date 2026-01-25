@@ -1451,7 +1451,7 @@ static void lsp_line_add_wlines(struct lsp_line_t *line)
 			 */
 			cwidth = 1;
 
-		col += cwidth;
+		col += cwidth ? cwidth : 1;
 		current_col = col;
 
 		if (col < lsp_maxx)
@@ -4406,7 +4406,7 @@ static int lsp_page_display_char(struct lsp_line_t *line, struct lsp_pg_ctx *pct
 	 */
 	int cols = wcwidth(pctx->ch[0]);
 
-	if (cols == -1) {
+	if (cols < 1) {
 		cols = 1;
 		if (pctx->ch[0] != '\n')
 			pctx->ch[0] = '.';
