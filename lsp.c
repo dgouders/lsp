@@ -5354,6 +5354,29 @@ static void lsp_set_pager(const char *pager)
 }
 
 /*
+ * Ensure current working directory is PWD.
+ *
+ * git(1), for example could change cwd to the root of the working tree
+ * which causes problems when restarting git commands that were invoked from
+ * within deeper in the working tree.
+ */
+static void lsp_restore_pwd()
+{
+	int ret;
+	char *pwd = getenv("PWD");
+
+	if (!pwd) {
+		lsp_debug("%s: could not get environment variable PWD.", __func__);
+		return;
+	}
+
+	ret = chdir(pwd);
+
+	if (ret == -1)
+		lsp_debug("%s: could not change to PWD (%s).", __func__, pwd);
+}
+
+/*
  * Start a process that feeds us work.
  *
  * which_one: specify whether we need to start a man(1) process or the original
@@ -5391,6 +5414,8 @@ static void lsp_start_feeder(lsp_feeder_t which_one)
 			e_argv = lsp_create_man_argv(lsp_load_man_command, cf->name);
 		else
 			e_argv = lsp_pinfo->argv;
+
+		lsp_restore_pwd();
 
 		execvp(e_argv[0], e_argv);
 		lsp_error("%s: execvp() failed.", __func__);
